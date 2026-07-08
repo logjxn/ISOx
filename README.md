@@ -1,0 +1,107 @@
+# ISOx
+
+A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest available source, and cryptographically verifies file integrity against source-published checksums — so you never have to manually hunt down hashes or skip verification because it's tedious.
+
+```
+Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
+```
+
+## Why
+
+I distro-hop a lot — Arch, Debian, and various others across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. That's a real integrity risk (corrupted downloads, tampered mirrors, interrupted transfers), so I built a tool that automates the whole pipeline and makes verification the default, not an extra step.
+
+## Features
+
+- **Config-driven distro support** — supported distros (mirrors, checksum filename, hash algorithm) are defined in `distros.json`, not hardcoded in the script. Adding a new distro is a data change, not a code change.
+- **Mirror racing** — sends a `HEAD` request to each configured mirror and times the response, then downloads from whichever responded fastest.
+- **Streamed downloads** — files are downloaded in 8KB chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't blow up RAM usage.
+- **Checksum verification** — after downloading, the tool recomputes the file's hash (chunked, via `hashlib`) and compares it against the official hash published by the distro, using whichever algorithm that distro publishes (SHA256, SHA512, etc.).
+- **Algorithm-agnostic hashing** — uses `hashlib.new(algo)` rather than hardcoding a specific hash function, so the same code path supports SHA256, SHA512, or anything else `hashlib` supports, driven entirely by the JSON config.
+
+## Usage
+
+```bash
+pip install requests
+python isox.py arch
+python isox.py debian
+```
+
+Downloaded ISOs are saved to `ISOx_Downloads/`. Output looks like:
+
+```
+https://fastly.mirror.pkgbuild.com/iso/latest/sha256sums.txt responded in 1.082s
+https://geo.mirror.pkgbuild.com/iso/latest/sha256sums.txt responded in 1.428s
+https://ftpmirror.infania.net/mirror/archlinux/iso/latest/sha256sums.txt responded in 2.000s
+Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/latest ...
+Checksum matches, file is good.
+```
+
+## How it works
+
+### Config format (`distros.json`)
+
+```json
+{
+    "arch": {
+        "mirrors": [
+            "https://fastly.mirror.pkgbuild.com/iso/latest/",
+            "https://geo.mirror.pkgbuild.com/iso/latest/",
+            "https://ftpmirror.infania.net/mirror/archlinux/iso/latest/",
+        ],
+        "checksum_filename": "sha256sums.txt",
+        "hash_algo": "sha256"
+    },
+    "debian": {
+        "mirrors": ["https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"],
+        "checksum_filename": "SHA256SUMS",
+        "hash_algo": "sha256"
+    }
+}
+```
+
+Each mirror URL points at a "latest"-style path that the distro maintainers keep pointing at the current release, rather than a dated/versioned path that will eventually 404:
+
+- **Arch** exposes an `iso/latest/` alias alongside its dated release folders (e.g. `iso/2026.07.01/`), which always mirrors the current release.
+- **Debian** exposes a permanent `debian-cd/current/` path that always serves the current stable release, regardless of version number.
+
+This means the config doesn't need to be updated every time a distro ships a new release.
+
+### Mirror selection
+
+Each candidate mirror's checksum-file URL is hit with an HTTP `HEAD` request (`requests.head(url, timeout=5)`), and wall-clock response time is measured. The mirror with the lowest response time is selected for both the checksum file and the ISO download.
+
+**Known limitation:** this measures *latency/responsiveness*, not sustained *throughput*. A mirror that answers a `HEAD` request quickly isn't guaranteed to sustain the fastest bandwidth over a multi-GB transfer — it's a cheap, fast proxy, not a perfect one. A more accurate (but more expensive) approach would use ranged `GET` requests to sample actual transfer speed over a chunk of the real file before committing to a mirror.
+
+Mirrors that time out or return an error status are caught (`requests.exceptions.RequestException`) and skipped rather than crashing the whole run.
+
+### Checksum verification
+
+The distro's checksum file (a flat text file with `<hash>  <filename>` per line — the standard output format of tools like `sha256sum`) is fetched fresh on every run and parsed into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed in 8KB chunks via `hashlib`, and the result is compared against the expected hash with a simple string equality check.
+
+**This was tested, not just assumed to work:** a separate script (`corrupttest.py`) deliberately appends garbage bytes to a previously-verified ISO, then re-runs the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always reporting success.
+
+```python
+from isox import compute_hash, verify_checksum
+
+# ... fetch hash_lookup the same way main() does ...
+
+with open(filepath, "ab") as f:
+    f.write(b"corrupted")
+
+result = verify_checksum(filepath, filename, hash_lookup, "sha256")
+print("Verified:", result)  # -> False
+```
+
+## Known limitations / not yet implemented
+
+- **No GPG signature verification.** Checksums prove the file wasn't corrupted/altered in transit, but not that the checksum file itself came from the distro maintainers (as opposed to a compromised mirror serving a matching-but-malicious ISO alongside a matching-but-fake checksum file). Distros like Debian publish detached GPG signatures (`.sign`) for exactly this reason. Implementing this would mean fetching and trusting the distro's public signing key and verifying the signature before trusting the checksum file at all.
+- **Only Arch and Debian are supported today.** Every distro publishes ISOs and checksums differently — some use dated-only paths with no stable "latest" alias, some require scraping an HTML directory listing to discover the current version programmatically. The JSON config makes adding a distro straightforward *once* its URL pattern is known, but that research is still manual per distro.
+- **Mirror racing measures latency, not throughput** (see above).
+- **No download progress indicator.** Large ISOs download silently until complete; a progress bar using `response.headers.get('content-length')` would be a reasonable addition.
+
+## Requirements
+
+- Python 3.x
+- `requests` (`pip install requests`)
+
+Everything else (`hashlib`, `json`, `argparse`, `os`, `time`) is part of the Python standard library.
