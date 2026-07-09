@@ -14,7 +14,10 @@ def download_file(url, destination_path):
             f.write(chunk)
             
 def compute_hash(filepath, algo):
-    hasher = hashlib.new(algo)  # dynamically picks sha256, sha512, etc.
+    try:
+        hasher = hashlib.new(algo)
+    except ValueError:
+        raise ValueError(f"Unsupported hash algorithm: '{algo}'. Check distros.json for a typo.")
     with open(filepath, "rb") as f:
         while True:
             chunk = f.read(8192)
