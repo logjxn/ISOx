@@ -13,7 +13,7 @@ I distro-hop a lot. Arch, Debian, and various others across laptops, tablets, Pi
 ## Features
 
 - **Config-driven distro support** - supported distros (mirrors, checksum filename, hash algorithm) are defined in `distros.json`, not hardcoded in the script, meaning adding a new distro is a data change, not a code change.
-- **Mirror speed checks** - sends a `HEAD` request to each configured mirror and times the response, then downloads from whichever responded fastest.
+- **Mirror speed checks** - Uses download sampling (2MB) to run a quick check on the fastest mirror throughput, then downloads from that.
 - **Streamed downloads** - files are downloaded in 8KB chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't blow up RAM usage.
 - **Checksum verification** - after downloading, the tool recomputes the file's hash (chunked, via `hashlib`) and compares it against the official hash published by the distro, using whichever algorithm that distro publishes (SHA256, SHA512, etc.).
 - **Algorithm-agnostic hashing** - uses `hashlib.new(algo)` rather than hardcoding a specific hash function, so the same code path supports SHA256, SHA512, or anything else `hashlib` supports, driven entirely by the JSON config.
@@ -68,9 +68,11 @@ This means the config doesn't need to be updated every time a distro ships a new
 
 ### Mirror selection
 
-Each candidate mirror's checksum-file URL is hit with an HTTP `HEAD` request (`requests.head(url, timeout=5)`), and wall-clock response time is measured. The mirror with the lowest response time is selected for both the checksum file and the ISO download.
+Each candidate mirror is sampled with a ranged GET request, that pulls the first ~2MB of the actual ISO via an HTTP Range: bytes=0-1999999 header, and the real transfer speed (bytes/second) is measured over that sample. The mirror with the highest sampled throughput is selected for both the checksum file and the full ISO download.
 
-Mirrors that time out or return an error status are caught (`requests.exceptions.RequestException`) and skipped rather than crashing the whole run.
+Mirrors that time out or return an error status are caught (requests.exceptions.RequestException) and skipped rather than crashing the whole run.
+
+v1 → v1.1 change: the original version selected mirrors using HEAD request response time (pure latency) rather than throughput. After some testing, it proved that a mirror that answered the HEAD request fastest wasn't always the fastest download option. The mirror selection logic was rebuilt to sample real throughput directly rather than inferring it from response latency.
 
 ### Checksum verification
 
