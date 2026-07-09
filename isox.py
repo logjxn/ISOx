@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 
-## Functions for grabbing isos, computing hashes, comparing mirror speeds, and checksums
 def download_file(url, destination_path):
     response = requests.get(url, stream=True)
     response.raise_for_status()
@@ -27,6 +26,8 @@ def compute_hash(filepath, algo):
     return hasher.hexdigest()
 
 def verify_checksum(filepath, filename, hash_lookup, algo):
+    if filename not in hash_lookup:
+        raise ValueError(f"No checksum entry found for '{filename}' in the checksum file.")
     expected_hash = hash_lookup[filename]
     actual_hash = compute_hash(filepath, algo)
     return actual_hash == expected_hash
@@ -61,7 +62,7 @@ def find_fastest_mirror_by_throughput(mirror_urls):
 
     if not results:
         raise Exception("No reachable mirrors")
-    fastest = max(results, key=results.get)  # note: max, not min
+    fastest = max(results, key=results.get)  
     return fastest
 
 
@@ -70,8 +71,12 @@ def main():
     parser.add_argument("distro", choices=["arch", "debian"], help="Which distro to download")
     args = parser.parse_args()
 
-    with open("distros.json", "r") as f:
-        distros = json.load(f)
+    try:
+        with open("distros.json", "r") as f:
+            distros = json.load(f)
+    except FileNotFoundError:
+        print("Error: distros.json not found. Make sure it's in the same folder as isox.py.")
+        return
     distro_info = distros[args.distro]
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]
@@ -90,7 +95,11 @@ def main():
             parts = line.split()
             if len(parts) == 2:
                 peek_lookup[parts[1]] = parts[0]
-        iso_filename = next(f for f in peek_lookup if "netinst" in f and "amd64" in f)
+        try:
+            iso_filename = next(f for f in peek_lookup if "netinst" in f and "amd64" in f)
+        except StopIteration:
+            print("Error: couldn't find a matching Debian netinst ISO in the checksum file.")
+            return
 
     iso_urls = [m.rstrip("/") + "/" + iso_filename for m in mirrors]
     best_iso_url = find_fastest_mirror_by_throughput(iso_urls)
