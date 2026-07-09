@@ -93,6 +93,9 @@ result = verify_checksum("ISOx_Downloads/archlinux-x86_64.iso", "archlinux-x86_6
 print("Verified:", result)  # should print False now, after corruption
 ```
 
+## NOTE
+This tool does not perform signature checking. Some distros such as Debian use GPG signatures to ensure the files come from them. This tool does NOT check for those, please ensure you are researching and using trusted mirrors if you add any distros to this tools configuration. All mirrors built-in currently come from Arch Linux's worldwide mirrorlist, and Debian is straight from them.
+
 ## Requirements
 
 - Python 3.x
