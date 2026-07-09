@@ -1,0 +1,16 @@
+{
+    "arch": {
+        "mirrors": [
+            "https://fastly.mirror.pkgbuild.com/iso/latest/",
+            "https://geo.mirror.pkgbuild.com/iso/latest/",
+            "https://ftpmirror.infania.net/mirror/archlinux/iso/latest/"
+        ],
+        "checksum_filename": "sha256sums.txt",
+        "hash_algo": "sha256"
+    },
+    "debian" : {
+        "mirrors" : ["https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"],
+        "checksum_filename" : "SHA256SUMS",
+        "hash_algo" : "sha256"
+    }
+}
