@@ -40,7 +40,6 @@ def check_mirror_throughput(url, sample_bytes=2_000_000):
             downloaded += len(chunk)
             if downloaded >= sample_bytes:
                 break
-
         elapsed = time.time() - start
         speed = downloaded / elapsed
         return speed
