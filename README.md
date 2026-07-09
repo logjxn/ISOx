@@ -94,7 +94,7 @@ print("Verified:", result)  # should print False now, after corruption
 ```
 
 ## NOTE
-This tool does not perform signature checking. Some distros such as Debian use GPG signatures to ensure the files come from them. This tool does NOT check for those, please ensure you are researching and using trusted mirrors if you add any distros to this tools configuration. All mirrors built-in currently come from Arch Linux's worldwide mirrorlist, and Debian is straight from them.
+This tool does not perform signature checking. Some distros, such as Debian, use GPG signatures to verify that files genuinely originated from them. This tool does NOT check for those. If you add additional distros to the configuration, please make sure you're using trusted, official mirrors. All mirrors currently built in come from Arch Linux's official worldwide mirrorlist, and Debian's are sourced directly from debian.org.
 
 ## Requirements
 
