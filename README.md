@@ -74,7 +74,7 @@ Mirrors that time out or return an error status are caught (`requests.exceptions
 
 ### Checksum verification
 
-The distro's checksum file (a flat text file with `<hash>  <filename>` per line — the standard output format of tools like `sha256sum`) is fetched fresh on every run and parsed into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed in 8KB chunks via `hashlib`, and the result is compared against the expected hash with a simple string equality check.
+The distro's checksum file (a flat text file with `<hash>  <filename>` per line, the standard output format of tools like `sha256sum`) is fetched fresh on every run and parsed into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed in 8KB chunks via `hashlib`, and the result is compared against the expected hash with a simple string equality check.
 
 **This was tested, not just assumed to work:** I created a separate script to deliberately append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always reporting success.
 *See below for the script I used to test corruption. Feel free to try yourself.*
