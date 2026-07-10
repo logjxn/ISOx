@@ -8,11 +8,11 @@ Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
 
 ## Why
 
-I distro-hop a lot. Arch, Debian, and various others across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. That can be an integrity risk (corrupted downloads, tampered mirrors, interrupted transfers), so I built a tool that automates the whole pipeline and makes verification the default, not an extra step.
+I distro-hop a lot. Arch, Debian, Kali, and various others across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. That can be an integrity risk (corrupted downloads, tampered mirrors, interrupted transfers), so I built a tool that automates the whole pipeline and makes verification the default, not an extra step.
 
 ## Features
 
-- **Config-driven distro support** - supported distros (mirrors, checksum filename, hash algorithm) are defined in `distros.json`, not hardcoded in the script, meaning adding a new distro is a data change, not a code change.
+- **Config-driven distro support** - supported distros (mirrors, checksum filename, hash algorithm, and how to locate the ISO filename) are defined in `distros.json`, not hardcoded in the script, meaning adding a new distro is a data change, not a code change.
 - **Mirror speed checks** - Uses download sampling (2MB) to run a quick check on the fastest mirror throughput, then downloads from that.
 - **Streamed downloads** - files are downloaded in 8KB chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't blow up RAM usage.
 - **Checksum verification** - after downloading, the tool recomputes the file's hash (chunked, via `hashlib`) and compares it against the official hash published by the distro, using whichever algorithm that distro publishes (SHA256, SHA512, etc.).
@@ -24,14 +24,15 @@ I distro-hop a lot. Arch, Debian, and various others across laptops, tablets, Pi
 pip install requests
 python isox.py arch
 python isox.py debian
+python isox.py kali
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
 
 ```
-https://fastly.mirror.pkgbuild.com/iso/latest/sha256sums.txt responded in 1.082s
-https://geo.mirror.pkgbuild.com/iso/latest/sha256sums.txt responded in 1.428s
-https://ftpmirror.infania.net/mirror/archlinux/iso/latest/sha256sums.txt responded in 2.000s
+https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 14.32 MB/s
+https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 9.87 MB/s
+https://ftpmirror.infania.net/mirror/archlinux/iso/latest/archlinux-x86_64.iso sampled at 3.11 MB/s
 Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/latest ...
 Checksum matches, file is good.
 ```
@@ -49,12 +50,24 @@ Checksum matches, file is good.
             "https://ftpmirror.infania.net/mirror/archlinux/iso/latest/"
         ],
         "checksum_filename": "sha256sums.txt",
-        "hash_algo": "sha256"
+        "hash_algo": "sha256",
+        "iso_filename": "archlinux-x86_64.iso"
     },
     "debian": {
         "mirrors": ["https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"],
         "checksum_filename": "SHA256SUMS",
-        "hash_algo": "sha256"
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["netinst", "amd64"]
+    },
+    "kali": {
+        "mirrors": [
+            "https://archive-4.kali.org/kali-images/current/",
+            "https://kali.download/base-images/current/",
+            "https://mirrors.dotsrc.org/kali-images/current/"
+        ],
+        "checksum_filename": "SHA256SUMS",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["installer-amd64"]
     }
 }
 ```
@@ -63,8 +76,20 @@ Each mirror URL points at a "latest"-style path that the distro maintainers keep
 
 - **Arch** exposes an `iso/latest/` alias alongside its dated release folders (e.g. `iso/2026.07.01/`), which always mirrors the current release.
 - **Debian** exposes a permanent `debian-cd/current/` path that always serves the current stable release, regardless of version number.
+- **Kali** exposes a `current/` path per mirror (Kali is Debian-based, and follows the same convention) that always resolves to the current release.
 
 This means the config doesn't need to be updated every time a distro ships a new release.
+
+**Two ways a distro's ISO filename can be located, both driven entirely by config:**
+
+- `"iso_filename"` — for distros with one fixed, unchanging filename (Arch never changes `archlinux-x86_64.iso`).
+- `"iso_filename_contains"` — a list of substrings used to discover the correct versioned filename by scanning the checksum file (Debian and Kali both bake a version number into their filenames, so the exact name has to be discovered rather than hardcoded).
+
+`main()` picks whichever strategy a distro's config specifies — there's no per-distro code anywhere in the script. Adding Kali required zero changes to `isox.py`; it was purely a `distros.json` addition. `argparse`'s valid distro choices are also derived directly from `distros.json`'s keys, so a new distro automatically becomes a valid CLI argument too, with no separate list to keep in sync.
+
+**Honest scope of "no code change needed":** this holds for any distro that publishes a flat `<hash>  <filename>` checksum file with either a stable filename or a substring-discoverable one. A distro that instead requires scraping an HTML directory listing, or structures its checksum data differently, would still need new code.
+
+**Considered and left out:** Linux Mint uses fixed version-numbered paths (e.g. `iso/stable/22.3/...`) with no stable "latest" alias — supporting it would mean either manually updating the config every release or building HTML-scraping logic to discover the current version. Left out to avoid a maintenance burden that doesn't fit the rest of the tool's design.
 
 ### Mirror selection
 
@@ -84,7 +109,7 @@ The distro's checksum file (a flat text file with `<hash>  <filename>` per line,
 from isox import compute_hash, verify_checksum
 import requests
 
-response = requests.get("https://fastly.mirror.pkgbuild.com/iso/2026.07.01/sha256sums.txt")
+response = requests.get("https://fastly.mirror.pkgbuild.com/iso/latest/sha256sums.txt")
 hash_lookup = {}
 for line in response.text.splitlines():
     parts = line.split()
@@ -96,7 +121,7 @@ print("Verified:", result)  # should print False now, after corruption
 ```
 
 ## NOTE
-This tool does not perform signature checking. Some distros, such as Debian, use GPG signatures to verify that files genuinely originated from them. This tool does NOT check for those. If you add additional distros to the configuration, please make sure you're using trusted, official mirrors. All mirrors currently built in come from Arch Linux's official worldwide mirrorlist, and Debian's are sourced directly from debian.org.
+This tool does not perform signature checking. Some distros, such as Debian and Kali, use GPG signatures to verify that files genuinely originated from them. This tool does NOT check for those. If you add additional distros to the configuration, please make sure you're using trusted, official mirrors. All mirrors currently built in come from Arch Linux's official worldwide mirrorlist, Debian's are sourced directly from debian.org, and Kali's are sourced from the official Kali mirror network (cdimage.kali.org and its listed mirrors).
 
 ## Requirements
 
