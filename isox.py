@@ -74,6 +74,11 @@ def main():
     parser.add_argument("distro", choices=list(distros.keys()), help="Which distro to download")
     args = parser.parse_args()
     distro_info = distros[args.distro]
+    required_keys = ["mirrors", "checksum_filename", "hash_algo"]
+    missing = [k for k in required_keys if k not in distro_info]
+    if missing:
+        print(f"Error: '{args.distro}' entry in distros.json is missing: {', '.join(missing)}")
+        return
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]
     hash_algo = distro_info["hash_algo"]
@@ -106,18 +111,22 @@ def main():
     best_iso_url = find_fastest_mirror_by_throughput(iso_urls)
     base = best_iso_url.rsplit("/", 1)[0]
 
-    checksum_url = f"{base}/{checksum_filename}"
-    response = requests.get(checksum_url)
-    response.raise_for_status()
-    hash_lookup = {}
-    for line in response.text.splitlines():
-        parts = line.split()
-        if len(parts) == 2:
-            hash_lookup[parts[1]] = parts[0]
+    try:
+        checksum_url = f"{base}/{checksum_filename}"
+        response = requests.get(checksum_url)
+        response.raise_for_status()
+        hash_lookup = {}
+        for line in response.text.splitlines():
+            parts = line.split()
+            if len(parts) == 2:
+                hash_lookup[parts[1]] = parts[0]
 
-    destination_path = os.path.join("ISOx_Downloads", iso_filename)
-    print(f"Downloading {iso_filename} from {base} ...")
-    download_file(best_iso_url, destination_path)
+        destination_path = os.path.join("ISOx_Downloads", iso_filename)
+        print(f"Downloading {iso_filename} from {base} ...")
+        download_file(best_iso_url, destination_path)
+    except requests.exceptions.RequestException as e:
+        print(f"Error: network request failed ({e}). Try running the script again.")
+        return
 
     if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
         print("Checksum matches, file is good.")
