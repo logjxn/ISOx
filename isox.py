@@ -67,16 +67,12 @@ def find_fastest_mirror_by_throughput(mirror_urls):
 
 
 def main():
+    with open("distros.json", "r") as f:
+        distros = json.load(f)
+        
     parser = argparse.ArgumentParser(description="Download and verify Linux ISOs")
-    parser.add_argument("distro", choices=["arch", "debian"], help="Which distro to download")
+    parser.add_argument("distro", choices=list(distros.keys()), help="Which distro to download")
     args = parser.parse_args()
-
-    try:
-        with open("distros.json", "r") as f:
-            distros = json.load(f)
-    except FileNotFoundError:
-        print("Error: distros.json not found. Make sure it's in the same folder as isox.py.")
-        return
     distro_info = distros[args.distro]
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]
@@ -84,9 +80,9 @@ def main():
 
     os.makedirs("ISOx_Downloads", exist_ok=True)
 
-    if args.distro == "arch":
-        iso_filename = "archlinux-x86_64.iso"
-    elif args.distro == "debian":
+    if "iso_filename" in distro_info:
+        iso_filename = distro_info["iso_filename"]
+    else:
         peek_checksum_url = mirrors[0].rstrip("/") + "/" + checksum_filename
         response = requests.get(peek_checksum_url)
         response.raise_for_status()
@@ -95,10 +91,15 @@ def main():
             parts = line.split()
             if len(parts) == 2:
                 peek_lookup[parts[1]] = parts[0]
+
+        required_substrings = distro_info["iso_filename_contains"]
         try:
-            iso_filename = next(f for f in peek_lookup if "netinst" in f and "amd64" in f)
+            iso_filename = next(
+                f for f in peek_lookup
+                if all(sub in f for sub in required_substrings)
+            )
         except StopIteration:
-            print("Error: couldn't find a matching Debian netinst ISO in the checksum file.")
+            print(f"Error: couldn't find a matching ISO filename for '{args.distro}' in the checksum file.")
             return
 
     iso_urls = [m.rstrip("/") + "/" + iso_filename for m in mirrors]
