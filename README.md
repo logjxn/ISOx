@@ -30,9 +30,9 @@ python isox.py kali
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
 
 ```
-https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 14.32 MB/s
-https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 9.87 MB/s
-https://ftpmirror.infania.net/mirror/archlinux/iso/latest/archlinux-x86_64.iso sampled at 3.11 MB/s
+https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 3.33 MB/s
+https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 1.98 MB/s
+https://ftpmirror.infania.net/mirror/archlinux/iso/latest/archlinux-x86_64.iso sampled at 0.08 MB/s
 Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/latest ...
 Checksum matches, file is good.
 ```
