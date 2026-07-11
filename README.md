@@ -12,19 +12,25 @@ I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually vi
 
 ## Features
 
-- **Config-driven distro support** - supported distros (mirrors, checksum filename, hash algorithm, and how to locate the ISO filename) are defined in `distros.json`, not hardcoded, meaning adding a new distro is via the distros.json rather than changing the main code.
-- **Mirror speed checks** - Uses download sampling (2MB) to run a quick check on mirror throughput, then chooses the fastest.
-- **Streamed downloads** - files are downloaded in 8KB chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't hog up RAM.
-- **Checksum verification** - after downloading, the tool recomputes the file's hash (via `hashlib`) and compares it against the official hash published by the distro, using whichever algorithm that distro publishes (SHA256, SHA512, etc.).
+- **Config-driven distro support** - supported distros (mirrors, checksum details, and how to locate the ISO filename) are defined in `distros.json`, not hardcoded, meaning adding a new distro is a json entry, not a code change.
+- **Three ISO-discovery strategies** - a static filename, a substring scanned out of a shared checksum file, or a substring match scraped from an HTML directory listing, covering distros that publish their ISOs in very different ways.
+- **Version-folder auto-discovery** - for distros with no stable "latest" URL alias, the current version-numbered directory is discovered automatically by scanning a parent directory and numerically sorting version-like folder names, instead of hardcoding a version that goes stale on the next release.
+- **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
+- **Streamed downloads**-— files are downloaded in large chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't hog RAM.
+- **Checksum verification across three real-world formats** - the standard `<hash>  <filename>` format, a single-hash-per-file format, and a GPG-signed BSD-style format (`SHA256 (filename) = hash`) are all normalized into the same lookup and compared with `hashlib`.
 - **Multi-algorithm support** - uses `hashlib.new(algo)` rather than hardcoding a specific hash function, so the same code path supports SHA256, SHA512, or anything else `hashlib` supports.
+- **Path-traversal protection** - filenames discovered from remote HTML listings are validated before ever being used in a URL or local file path.
 
 ## Usage
 
 ```bash
-pip install requests
 python isox.py arch
 python isox.py debian
 python isox.py kali
+python isox.py alpine
+python isox.py mint
+python isox.py fedora
+python isox.py opensuse
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
@@ -41,14 +47,12 @@ Checksum matches, file is good.
 
 ### Config format (`distros.json`)
 
+Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest case (Arch: one fixed filename, one fixed checksum filename, one checksum format).
+
 ```json
 {
     "arch": {
-        "mirrors": [
-            "https://fastly.mirror.pkgbuild.com/iso/latest/",
-            "https://geo.mirror.pkgbuild.com/iso/latest/",
-            "https://ftpmirror.infania.net/mirror/archlinux/iso/latest/"
-        ],
+        "mirrors": ["https://fastly.mirror.pkgbuild.com/iso/latest/"],
         "checksum_filename": "sha256sums.txt",
         "hash_algo": "sha256",
         "iso_filename": "archlinux-x86_64.iso"
@@ -58,50 +62,42 @@ Checksum matches, file is good.
         "checksum_filename": "SHA256SUMS",
         "hash_algo": "sha256",
         "iso_filename_contains": ["netinst", "amd64"]
-    },
-    "kali": {
-        "mirrors": [
-            "https://archive-4.kali.org/kali-images/current/",
-            "https://kali.download/base-images/current/",
-            "https://mirrors.dotsrc.org/kali-images/current/"
-        ],
-        "checksum_filename": "SHA256SUMS",
-        "hash_algo": "sha256",
-        "iso_filename_contains": ["installer-amd64"]
     }
 }
 ```
 
-Each mirror URL points at a latest path that the distro maintainers keep pointing at the current release, rather than a dated/versioned path that will eventually 404:
+### ISO filename discovery, three strategies
 
-- For example, **Arch** exposes an `iso/latest/` alias alongside its dated release folders (like `iso/2026.07.01/`), which always mirrors the current release.
-- **Debian** exposes a permanent `debian-cd/current/` path that always serves the current stable release, regardless of version number.
+Not every distro publishes ISOs the same way, so `main()` picks a strategy per distro based on which config fields are present. No per-distro code exists anywhere in the script.
 
-The config doesn't need to be updated every time a distro has a new release.
+- **`"iso_filename"`** - for distros with one fixed, unchanging filename (Arch never changes `archlinux-x86_64.iso`).
+- **`"iso_filename_contains"` + default discovery** - scans a shared checksum file (like Debian's `SHA256SUMS`) for a filename matching all the given substrings, since versioned filenames would be inefficient to hardcode.
+- **`"iso_filename_contains"` + `"discovery_method": "html_scan"`** - for distros with no single shared checksum file to scan (Alpine ships one checksum file *per* ISO; Mint and Fedora need the ISO filename discovered before a checksum filename can even be built). Scrapes the actual directory listing HTML with BeautifulSoup and filters `<a href>` links ending in `.iso` that match all the given substrings.
 
-**How are various ISO names set in distros.json?**
+**Version-folder auto-discovery** (`"version_directory": true`) is a separate, earlier step for distros with no stable "latest" URL alias at all. Before any ISO discovery happens, the parent directory is scraped, version-numbered folder names are parsed and sorted *numerically*, and the newest one is spliced into every `{version}` placeholder across the mirror URLs. 
 
-- `"iso_filename"` - for distros with one fixed, unchanging filename (Arch never changes `archlinux-x86_64.iso`).
-- `"iso_filename_contains"` - a list of substrings used to discover the correct versioned filename by scanning the checksum file (Debian, Kali, and many other distros have a version number into their filenames, so the exact name has to be pieced together).
+### Checksum parsing
 
-`main()` picks whichever strategy a distro's config specifies, and there's no per-distro code anywhere in the script. `argparse`'s valid distro choices are also derived directly from `distros.json`'s keys, so a new distro automatically becomes a valid CLI argument too.
-
-**"no code change needed":** this holds for any distro that publishes a flat `<hash>  <filename>` checksum file with either a stable filename or a discoverable one. A distro that instead requires scraping an HTML directory listing, or structures its checksum data differently, could potentially need new code in isox.py.
+- **`"multi"` (default)** - the standard `<hash>  <filename>` format used by `sha256sum`'s own output. Also handles a leading `*` before the filename, a binary-mode marker some tools include.
+- **`"single"`** - the whole file content is treated as the hash, with the filename supplied from context rather than parsed. Available for distros that publish a genuinely bare hash.
+- **`"bsd"`** - parses lines shaped like `SHA256 (filename) = hash`, used by Fedora's GPG-signed CHECKSUM files. Only lines starting with the configured `hash_algo` are read, so a file listing multiple algorithms for the same filename can't have the wrong one silently picked.
 
 ### Mirror selection
 
-Each candidate mirror is sampled with a ranged GET request, that pulls the first ~2MB of the actual ISO via an HTTP Range header, and the real transfer speed (bytes/second) is measured over that sample. The mirror with the highest sampled throughput is selected for both the checksum file and the full ISO download.
+Each candidate mirror is sampled with a ranged GET request, pulling the first ~2MB of the actual ISO via an HTTP `Range` header, and the real transfer speed (bytes/second) is measured over that sample. The mirror with the highest sampled throughput is selected for both the checksum file and the full ISO download.
 
-Mirrors that time out or return an error status are caught (requests.exceptions.RequestException) and skipped rather than crashing the whole run.
+Mirrors that time out or return an error status are caught (`requests.exceptions.RequestException`) and skipped rather than crashing the whole run.
 
-v1 → v1.1 change: the original version selected mirrors using HEAD request response time (pure latency) rather than throughput. After some testing, it proved that a mirror that answered the HEAD request fastest wasn't always the fastest download option. The mirror selection logic was rebuilt to sample real throughput directly rather than inferring from response latency.
+**v1 → v1.1 change:** the original version selected mirrors using HEAD request response time (pure latency) rather than throughput. Testing showed the fastest-responding mirror wasn't always the fastest actual download, so mirror selection was rebuilt to sample real throughput directly.
+
+**Why did I change this?:** during testing, a mirror that won the HEAD-request race turned out to be noticeably slower on the actual ISO transfer. Separately, a new Debian  release temporarily left two of three mirrors returning 404s (they hadn't synced yet); the tool correctly marked them unreachable and completed successfully using the mirror that was current.
 
 ### Checksum verification
 
-The distro's checksum file is fetched on every run and parsed into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed in 8KB chunks via `hashlib`, and the result is compared against the expected hash with a string equality check.
+The distro's checksum file is fetched fresh on every run and parsed (using whichever format that distro requires) into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed via `hashlib` and compared against the expected hash with a string equality check.
 
-**This was tested, not just assumed to work:** I created a separate script to deliberately append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always confirming it's unmodified.
-*See below for the script I used to test corruption. Feel free to try yourself.*
+**This was tested, not just assumed to work:** I created a separate script to append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always reporting success.
+*The script I used to test corruption is below. Feel free to try for yourself.*
 ```python
 from isox import compute_hash, verify_checksum
 import requests
@@ -118,14 +114,16 @@ print("Verified:", result)  # should print False now, after corruption
 ```
 
 ## NOTE
-This tool does not perform signature checking. Some distros, such as Debian and Kali, use GPG signatures to verify that files genuinely originated from them. ISOx does NOT check for those. __If you add additional distros to the configuration, please make sure you're using trusted, official mirrors.__
+This tool does NOT perform GPG signature verifications. Many distros use this as further proof an iso came from the correct distributor, i.e. Debian/Fedora. ISOx does not check GPG signatures, if you add any distros please ensure you are using **official** mirrors. Most distros often publish their own mirrorlists. 
 
 ## Requirements
 
 - Python 3.x
 - `requests` (`pip install requests`)
+- `beautifulsoup4` (`pip install beautifulsoup4`) — used for HTML directory-listing discovery
 
 Everything else (`hashlib`, `json`, `argparse`, `os`, `time`) is part of the Python standard library.
 
 ## License
+
 MIT License: see [LICENSE](LICENSE) for details. Feel free to use, modify, or build on this.
