@@ -72,12 +72,12 @@ Checksum matches, file is good.
 }
 ```
 
-Each mirror URL points at a "latest"-style path that the distro maintainers keep pointing at the current release, rather than a dated/versioned path that will eventually 404:
+Each mirror URL points at a latest path that the distro maintainers keep pointing at the current release, rather than a dated/versioned path that will eventually 404:
 
 - For example, **Arch** exposes an `iso/latest/` alias alongside its dated release folders (like `iso/2026.07.01/`), which always mirrors the current release.
 - **Debian** exposes a permanent `debian-cd/current/` path that always serves the current stable release, regardless of version number.
 
-This means the config doesn't need to be updated every time a distro has a new release.
+The config doesn't need to be updated every time a distro has a new release.
 
 **How are various ISO names set in DISTROS.json?**
 
@@ -94,7 +94,7 @@ Each candidate mirror is sampled with a ranged GET request, that pulls the first
 
 Mirrors that time out or return an error status are caught (requests.exceptions.RequestException) and skipped rather than crashing the whole run.
 
-v1 → v1.1 change: the original version selected mirrors using HEAD request response time (pure latency) rather than throughput. After some testing, it proved that a mirror that answered the HEAD request fastest wasn't always the fastest download option. The mirror selection logic was rebuilt to sample real throughput directly rather than inferring it from response latency.
+v1 → v1.1 change: the original version selected mirrors using HEAD request response time (pure latency) rather than throughput. After some testing, it proved that a mirror that answered the HEAD request fastest wasn't always the fastest download option. The mirror selection logic was rebuilt to sample real throughput directly rather than inferring from response latency.
 
 ### Checksum verification
 
@@ -118,7 +118,7 @@ print("Verified:", result)  # should print False now, after corruption
 ```
 
 ## NOTE
-This tool does not perform signature checking. Some distros, such as Debian and Kali, use GPG signatures to verify that files genuinely originated from them. ISOx does NOT check for those. If you add additional distros to the configuration, please make sure you're using trusted, official mirrors. All mirrors currently built in come from Arch Linux's official worldwide mirrorlist, Debian's are sourced directly from debian.org, and Kali's are sourced from the official Kali mirror network (cdimage.kali.org and its listed mirrors).
+This tool does not perform signature checking. Some distros, such as Debian and Kali, use GPG signatures to verify that files genuinely originated from them. ISOx does NOT check for those. __If you add additional distros to the configuration, please make sure you're using trusted, official mirrors.__
 
 ## Requirements
 
