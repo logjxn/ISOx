@@ -8,15 +8,15 @@ Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
 
 ## Why
 
-I distro-hop a lot. Arch, Debian, Kali, and various others across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. That can be an integrity risk (corrupted downloads, tampered mirrors, interrupted transfers), so I built a tool that automates the whole pipeline and makes verification the default, not an extra step.
+I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. This poses an integrity risk (modified ISOs, corruption, etc.), so I built a tool that automates the whole pipeline and makes verification the default, and not an extra step.
 
 ## Features
 
-- **Config-driven distro support** - supported distros (mirrors, checksum filename, hash algorithm, and how to locate the ISO filename) are defined in `distros.json`, not hardcoded in the script, meaning adding a new distro are added via the DISTROS.json rather than coding.
-- **Mirror speed checks** - Uses download sampling (2MB) to run a quick check on the fastest mirror throughput, then downloads from that.
-- **Streamed downloads** - files are downloaded in 8KB chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't blow up RAM usage.
-- **Checksum verification** - after downloading, the tool recomputes the file's hash (chunked, via `hashlib`) and compares it against the official hash published by the distro, using whichever algorithm that distro publishes (SHA256, SHA512, etc.).
-- **Algorithm-agnostic hashing** - uses `hashlib.new(algo)` rather than hardcoding a specific hash function, so the same code path supports SHA256, SHA512, or anything else `hashlib` supports.
+- **Config-driven distro support** - supported distros (mirrors, checksum filename, hash algorithm, and how to locate the ISO filename) are defined in `DISTROS.json`, not hardcoded, meaning adding a new distro is via the DISTROS.json rather than changing the main code.
+- **Mirror speed checks** - Uses download sampling (2MB) to run a quick check on mirror throughput, then chooses the fastest.
+- **Streamed downloads** - files are downloaded in 8KB chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't hog up RAM.
+- **Checksum verification** - after downloading, the tool recomputes the file's hash (via `hashlib`) and compares it against the official hash published by the distro, using whichever algorithm that distro publishes (SHA256, SHA512, etc.).
+- **Multi-algorithm support** - uses `hashlib.new(algo)` rather than hardcoding a specific hash function, so the same code path supports SHA256, SHA512, or anything else `hashlib` supports.
 
 ## Usage
 
@@ -39,7 +39,7 @@ Checksum matches, file is good.
 
 ## How it works
 
-### Config format (`distros.json`)
+### Config format (`DISTROS.json`)
 
 ```json
 {
@@ -74,24 +74,23 @@ Checksum matches, file is good.
 
 Each mirror URL points at a "latest"-style path that the distro maintainers keep pointing at the current release, rather than a dated/versioned path that will eventually 404:
 
-- **Arch** exposes an `iso/latest/` alias alongside its dated release folders (e.g. `iso/2026.07.01/`), which always mirrors the current release.
+- For example, **Arch** exposes an `iso/latest/` alias alongside its dated release folders (like `iso/2026.07.01/`), which always mirrors the current release.
 - **Debian** exposes a permanent `debian-cd/current/` path that always serves the current stable release, regardless of version number.
-- **Kali** exposes a `current/` path per mirror that always resolves to the current release.
 
-This means the config doesn't need to be updated every time a distro ships a new release.
+This means the config doesn't need to be updated every time a distro has a new release.
 
-**Two ways a distro's ISO filename can be located, both driven entirely by config:**
+**How are various ISO names set in DISTROS.json?**
 
-- `"iso_filename"` — for distros with one fixed, unchanging filename (Arch never changes `archlinux-x86_64.iso`).
-- `"iso_filename_contains"` — a list of substrings used to discover the correct versioned filename by scanning the checksum file (Debian and Kali both bake a version number into their filenames, so the exact name has to be discovered rather than hardcoded).
+- `"iso_filename"` - for distros with one fixed, unchanging filename (Arch never changes `archlinux-x86_64.iso`).
+- `"iso_filename_contains"` - a list of substrings used to discover the correct versioned filename by scanning the checksum file (Debian, Kali, and many other distros have a version number into their filenames, so the exact name has to be pieced together).
 
-`main()` picks whichever strategy a distro's config specifies, and there's no per-distro code anywhere in the script. Adding Kali required zero changes to `isox.py` and was purely a `distros.json` addition. `argparse`'s valid distro choices are also derived directly from `distros.json`'s keys, so a new distro automatically becomes a valid CLI argument too, with no separate list to keep in sync.
+`main()` picks whichever strategy a distro's config specifies, and there's no per-distro code anywhere in the script. `argparse`'s valid distro choices are also derived directly from `DISTROS.json`'s keys, so a new distro automatically becomes a valid CLI argument too.
 
-**Honest scope of "no code change needed":** this holds for any distro that publishes a flat `<hash>  <filename>` checksum file with either a stable filename or a discoverable one. A distro that instead requires scraping an HTML directory listing, or structures its checksum data differently, could need new code. 
+**"no code change needed":** this holds for any distro that publishes a flat `<hash>  <filename>` checksum file with either a stable filename or a discoverable one. A distro that instead requires scraping an HTML directory listing, or structures its checksum data differently, could potentially need new code in isox.py.
 
 ### Mirror selection
 
-Each candidate mirror is sampled with a ranged GET request, that pulls the first ~2MB of the actual ISO via an HTTP Range: bytes=0-1999999 header, and the real transfer speed (bytes/second) is measured over that sample. The mirror with the highest sampled throughput is selected for both the checksum file and the full ISO download.
+Each candidate mirror is sampled with a ranged GET request, that pulls the first ~2MB of the actual ISO via an HTTP Range header, and the real transfer speed (bytes/second) is measured over that sample. The mirror with the highest sampled throughput is selected for both the checksum file and the full ISO download.
 
 Mirrors that time out or return an error status are caught (requests.exceptions.RequestException) and skipped rather than crashing the whole run.
 
@@ -99,9 +98,9 @@ v1 → v1.1 change: the original version selected mirrors using HEAD request res
 
 ### Checksum verification
 
-The distro's checksum file (a flat text file with `<hash>  <filename>` per line, the standard output format of tools like `sha256sum`) is fetched fresh on every run and parsed into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed in 8KB chunks via `hashlib`, and the result is compared against the expected hash with a simple string equality check.
+The distro's checksum file is fetched on every run and parsed into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed in 8KB chunks via `hashlib`, and the result is compared against the expected hash with a string equality check.
 
-**This was tested, not just assumed to work:** I created a separate script to deliberately append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always reporting success.
+**This was tested, not just assumed to work:** I created a separate script to deliberately append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always confirming it's unmodified.
 *See below for the script I used to test corruption. Feel free to try yourself.*
 ```python
 from isox import compute_hash, verify_checksum
@@ -127,3 +126,6 @@ This tool does not perform signature checking. Some distros, such as Debian and 
 - `requests` (`pip install requests`)
 
 Everything else (`hashlib`, `json`, `argparse`, `os`, `time`) is part of the Python standard library.
+
+## License
+MIT License — see [LICENSE](LICENSE) for details. Feel free to use, modify, or build on this.
