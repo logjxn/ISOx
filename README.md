@@ -128,4 +128,4 @@ This tool does not perform signature checking. Some distros, such as Debian and 
 Everything else (`hashlib`, `json`, `argparse`, `os`, `time`) is part of the Python standard library.
 
 ## License
-MIT License — see [LICENSE](LICENSE) for details. Feel free to use, modify, or build on this.
+MIT License: see [LICENSE](LICENSE) for details. Feel free to use, modify, or build on this.
