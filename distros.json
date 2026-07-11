@@ -3,7 +3,7 @@
         "mirrors": [
             "https://fastly.mirror.pkgbuild.com/iso/latest/",
             "https://geo.mirror.pkgbuild.com/iso/latest/",
-            "https://ftpmirror.infania.net/mirror/archlinux/iso/latest/"
+            "https://mirror.rackspace.com/archlinux/iso/latest/"
         ],
         "checksum_filename": "sha256sums.txt",
         "hash_algo": "sha256",
@@ -28,5 +28,52 @@
         "checksum_filename": "SHA256SUMS",
         "hash_algo": "sha256",
         "iso_filename_contains": ["installer-amd64"]
+    },
+    "alpine": {
+        "mirrors": [
+            "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/",
+            "https://mirror.csclub.uwaterloo.ca/alpine/latest-stable/releases/x86_64/",
+            "https://mirror.pilotfiber.com/alpinelinux/latest-stable/releases/x86_64/"
+        ],
+        "checksum_filename": "{iso_filename}.sha256",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["extended","x86_64"]
+     },
+    "mint": {
+        "mirrors": [
+            "https://pub.linuxmint.io/stable/{version}/",
+            "https://mirrors.cicku.me/linuxmint/iso/stable/{version}/"
+        ],
+        "version_directory": true,
+        "version_discovery_url" : "https://pub.linuxmint.io/stable/",
+        "checksum_filename": "sha256sum.txt",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["cinnamon", "64bit"]
+    },
+    "fedora": {
+        "mirrors": [
+            "https://dl.fedoraproject.org/pub/fedora/linux/releases/{version}/Workstation/x86_64/iso/",
+            "https://mirror.cs.princeton.edu/pub/mirrors/fedora/linux/releases/{version}/Workstation/x86_64/iso/",
+            "https://mirror.arizona.edu/fedora/linux/releases/{version}/Workstation/x86_64/iso/"
+        ],
+        "version_directory" : true,
+        "version_discovery_url" : "https://dl.fedoraproject.org/pub/fedora/linux/releases/",
+        "checksum_filename" : "CHECKSUM",
+        "checksum_discovery_method" : "html_scan",
+        "checksum_format" : "bsd",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["Workstation", "x86_64", "iso"]
+    },
+    "opensuse" : {
+        "mirrors" : [
+            "https://download.opensuse.org/tumbleweed/iso/"
+        ],
+        "checksum_filename": "openSUSE-Tumbleweed-NET-x86_64-Current.iso.sha256",
+        "discovery_method": "checksum_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["openSUSE", "Tumbleweed", "NET", "Snapshot"]
     }
 }
