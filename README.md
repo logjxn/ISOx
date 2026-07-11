@@ -96,7 +96,7 @@ Mirrors that time out or return an error status are caught (`requests.exceptions
 
 The distro's checksum file is fetched fresh on every run and parsed (using whichever format that distro requires) into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed via `hashlib` and compared against the expected hash with a string equality check.
 
-**This was tested, not just assumed to work:** I created a separate script to append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always reporting success.
+**This was tested:** I created a separate script to append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always reporting success.
 *The script I used to test corruption is below. Feel free to try for yourself.*
 ```python
 from isox import compute_hash, verify_checksum
@@ -120,7 +120,7 @@ This tool does NOT perform GPG signature verifications. Many distros use this as
 
 - Python 3.x
 - `requests` (`pip install requests`)
-- `beautifulsoup4` (`pip install beautifulsoup4`) — used for HTML directory-listing discovery
+- `beautifulsoup4` (`pip install beautifulsoup4`) - used for HTML directory-listing discovery
 
 Everything else (`hashlib`, `json`, `argparse`, `os`, `time`) is part of the Python standard library.
 
