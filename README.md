@@ -12,12 +12,12 @@ I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually vi
 
 ## Features
 
-- **Config-driven distro support** - supported distros (mirrors, checksum details, and how to locate the ISO filename) are defined in `distros.json`, not hardcoded, meaning adding a new distro is a json entry, not a code change.
-- **Three ISO-discovery strategies** - a static filename, a substring scanned out of a shared checksum file, or a substring match scraped from an HTML directory listing, covering distros that publish their ISOs in very different ways.
-- **Version-folder auto-discovery** - for distros with no stable "latest" URL alias, the current version-numbered directory is discovered automatically by scanning a parent directory and numerically sorting version-like folder names, instead of hardcoding a version that goes stale on the next release.
+- **Config-driven distro support** - supported distros are defined in `distros.json`, not hardcoded, meaning adding a new distro is a json entry, not a code change.
+- **Three ISO-discovery strategies** - covers distros that publish their ISOs in very different ways.
+- **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered automatically by scanning a parent directory and numerically sorting version-like folder names, so outdated isos aren't retrieved.
 - **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
-- **Streamed downloads**-— files are downloaded in large chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't hog RAM.
-- **Checksum verification across three real-world formats** - the standard `<hash>  <filename>` format, a single-hash-per-file format, and a GPG-signed BSD-style format (`SHA256 (filename) = hash`) are all normalized into the same lookup and compared with `hashlib`.
+- **Streamed downloads** - files are downloaded in large chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't hog RAM.
+- **Checksum verification across three real-world formats** - the standard `<hash>  <filename>` format, a single-hash-per-file format, and a GPG-signed BSD-style format are all normalized into the same lookup and compared with `hashlib`.
 - **Multi-algorithm support** - uses `hashlib.new(algo)` rather than hardcoding a specific hash function, so the same code path supports SHA256, SHA512, or anything else `hashlib` supports.
 - **Path-traversal protection** - filenames discovered from remote HTML listings are validated before ever being used in a URL or local file path.
 
@@ -47,7 +47,7 @@ Checksum matches, file is good.
 
 ### Config format (`distros.json`)
 
-Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest case (Arch: one fixed filename, one fixed checksum filename, one checksum format).
+Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest cases such as Arch.
 
 ```json
 {
@@ -57,11 +57,20 @@ Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at mini
         "hash_algo": "sha256",
         "iso_filename": "archlinux-x86_64.iso"
     },
-    "debian": {
-        "mirrors": ["https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"],
-        "checksum_filename": "SHA256SUMS",
+    "fedora": {
+        "mirrors": [
+            "https://dl.fedoraproject.org/pub/fedora/linux/releases/{version}/Workstation/x86_64/iso/",
+            "https://mirror.cs.princeton.edu/pub/mirrors/fedora/linux/releases/{version}/Workstation/x86_64/iso/",
+            "https://mirror.arizona.edu/fedora/linux/releases/{version}/Workstation/x86_64/iso/"
+        ],
+        "version_directory" : true,
+        "version_discovery_url" : "https://dl.fedoraproject.org/pub/fedora/linux/releases/",
+        "checksum_filename" : "CHECKSUM",
+        "checksum_discovery_method" : "html_scan",
+        "checksum_format" : "bsd",
+        "discovery_method": "html_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["netinst", "amd64"]
+        "iso_filename_contains": ["Workstation", "x86_64", "iso"]
     }
 }
 ```
@@ -70,17 +79,17 @@ Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at mini
 
 Not every distro publishes ISOs the same way, so `main()` picks a strategy per distro based on which config fields are present. No per-distro code exists anywhere in the script.
 
-- **`"iso_filename"`** - for distros with one fixed, unchanging filename (Arch never changes `archlinux-x86_64.iso`).
-- **`"iso_filename_contains"` + default discovery** - scans a shared checksum file (like Debian's `SHA256SUMS`) for a filename matching all the given substrings, since versioned filenames would be inefficient to hardcode.
-- **`"iso_filename_contains"` + `"discovery_method": "html_scan"`** - for distros with no single shared checksum file to scan (Alpine ships one checksum file *per* ISO; Mint and Fedora need the ISO filename discovered before a checksum filename can even be built). Scrapes the actual directory listing HTML with BeautifulSoup and filters `<a href>` links ending in `.iso` that match all the given substrings.
+- **`"iso_filename"`** - for distros with one fixed, unchanging filename.
+- **`"iso_filename_contains"` + default discovery** - scans a shared checksum file for a filename matching all the given substrings, since versioned filenames would be inefficient to hardcode.
+- **`"iso_filename_contains"` + `"discovery_method": "html_scan"`** - for distros with no single shared checksum file to scan. Scrapes the actual directory listing HTML with BeautifulSoup and filters `<a href>` links ending in `.iso` that match all the necessary substrings.
 
 **Version-folder auto-discovery** (`"version_directory": true`) is a separate, earlier step for distros with no stable "latest" URL alias at all. Before any ISO discovery happens, the parent directory is scraped, version-numbered folder names are parsed and sorted *numerically*, and the newest one is spliced into every `{version}` placeholder across the mirror URLs. 
 
 ### Checksum parsing
 
-- **`"multi"` (default)** - the standard `<hash>  <filename>` format used by `sha256sum`'s own output. Also handles a leading `*` before the filename, a binary-mode marker some tools include.
+- **`"multi"` (default)** - the standard `<hash>  <filename>` format used by `sha256sum`'s own output.
 - **`"single"`** - the whole file content is treated as the hash, with the filename supplied from context rather than parsed. Available for distros that publish a genuinely bare hash.
-- **`"bsd"`** - parses lines shaped like `SHA256 (filename) = hash`, used by Fedora's GPG-signed CHECKSUM files. Only lines starting with the configured `hash_algo` are read, so a file listing multiple algorithms for the same filename can't have the wrong one silently picked.
+- **`"bsd"`** - parses lines shaped like `SHA256 (filename) = hash`, used by Fedora's GPG-signed files. Only lines starting with the configured `hash_algo` are read, so a file listing multiple algorithms for the same filename can't have the wrong one silently picked.
 
 ### Mirror selection
 
@@ -88,13 +97,13 @@ Each candidate mirror is sampled with a ranged GET request, pulling the first ~2
 
 Mirrors that time out or return an error status are caught (`requests.exceptions.RequestException`) and skipped rather than crashing the whole run.
 
-**v1 → v1.1 change:** the original version selected mirrors using HEAD request response time (pure latency) rather than throughput. Testing showed the fastest-responding mirror wasn't always the fastest actual download, so mirror selection was rebuilt to sample real throughput directly.
+**v1 → v1.1 change:** the original version selected mirrors using HEAD request response time (latency) rather than throughput. Testing showed the fastest-responding mirror wasn't always the fastest actual download, so mirror selection was rebuilt to sample real throughput directly.
 
-**Why did I change this?:** during testing, a mirror that won the HEAD-request race turned out to be noticeably slower on the actual ISO transfer. Separately, a new Debian  release temporarily left two of three mirrors returning 404s (they hadn't synced yet); the tool correctly marked them unreachable and completed successfully using the mirror that was current.
+**Why did I change this?:** during testing, a mirror that won the HEAD-request race turned out to be noticeably slower on the actual ISO transfer. Separately, a new Debian release temporarily left two of three mirrors returning 404s; the tool correctly marked them unreachable and completed successfully using the mirror that was current.
 
 ### Checksum verification
 
-The distro's checksum file is fetched fresh on every run and parsed (using whichever format that distro requires) into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed via `hashlib` and compared against the expected hash with a string equality check.
+The distro's checksum file is fetched new on every run and parsed into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed via `hashlib` and compared against the expected hash with a string equality check.
 
 **This was tested:** I created a separate script to append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always reporting success.
 *The script I used to test corruption is below. Feel free to try for yourself.*
