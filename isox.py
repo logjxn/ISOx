@@ -4,14 +4,54 @@ import time
 import argparse
 import json
 import os
+from bs4 import BeautifulSoup
 
 def download_file(url, destination_path):
-    response = requests.get(url, stream=True)
+    response = requests.get(url, stream=True, timeout=10)
     response.raise_for_status()
     with open(destination_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
+        for chunk in response.iter_content(chunk_size=1024 * 1024):
             f.write(chunk)
-            
+
+def discover_via_html_listing(directory_url, required_substrings, must_end_with=".iso"):
+    response = requests.get(directory_url, timeout=10)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
+    matches = [
+        (link[2:] if link.startswith("./") else link)
+        for link in links
+        if link.endswith(must_end_with) and all(sub in link for sub in required_substrings)
+    ]
+
+    if not matches:
+        raise ValueError(f"No matching filename found in directory listing (looking for {must_end_with})")
+    return sorted(matches)[-1]
+
+def find_latest_version_folder(directory_url, min_parts=1):
+    response = requests.get(directory_url, timeout=10)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
+
+    version_folders = []
+    for link in links:
+        cleaned = link.rstrip("/")
+        parts = cleaned.split(".")
+        if all(part.isdigit() for part in parts) and len(parts) >= min_parts:
+            version_folders.append((tuple(int(p) for p in parts), cleaned))
+
+    if not version_folders:
+        raise ValueError("No version-numbered folders found in directory listing")
+
+    version_folders.sort(key=lambda x: x[0])
+    return version_folders[-1][1]
+
+def is_unsafe_filename(filename):
+    return "/" in filename or "\\" in filename or ".." in filename
+
 def compute_hash(filepath, algo):
     try:
         hasher = hashlib.new(algo)
@@ -31,7 +71,7 @@ def verify_checksum(filepath, filename, hash_lookup, algo):
     expected_hash = hash_lookup[filename]
     actual_hash = compute_hash(filepath, algo)
     return actual_hash == expected_hash
-    
+
 def check_mirror_throughput(url, sample_bytes=2_000_000):
     try:
         headers = {"Range": f"bytes=0-{sample_bytes - 1}"}
@@ -49,7 +89,7 @@ def check_mirror_throughput(url, sample_bytes=2_000_000):
         return speed
     except requests.exceptions.RequestException:
         return None
-    
+
 def find_fastest_mirror_by_throughput(mirror_urls):
     results = {}
     for url in mirror_urls:
@@ -62,14 +102,14 @@ def find_fastest_mirror_by_throughput(mirror_urls):
 
     if not results:
         raise Exception("No reachable mirrors")
-    fastest = max(results, key=results.get)  
+    fastest = max(results, key=results.get)
     return fastest
 
 
 def main():
     with open("distros.json", "r") as f:
         distros = json.load(f)
-        
+
     parser = argparse.ArgumentParser(description="Download and verify Linux ISOs")
     parser.add_argument("distro", choices=list(distros.keys()), help="Which distro to download")
     args = parser.parse_args()
@@ -85,41 +125,89 @@ def main():
 
     os.makedirs("ISOx_Downloads", exist_ok=True)
 
+    if distro_info.get("version_directory", False):
+        version_discovery_url = distro_info["version_discovery_url"]
+        try:
+            latest_version = find_latest_version_folder(version_discovery_url)
+        except ValueError:
+            print(f"Error: couldn't find a version folder for '{args.distro}' at {version_discovery_url}")
+            return
+        mirrors = [m.format(version=latest_version) for m in mirrors]
+        print(f"Discovered latest version: {latest_version}")
+
     if "iso_filename" in distro_info:
         iso_filename = distro_info["iso_filename"]
     else:
-        peek_checksum_url = mirrors[0].rstrip("/") + "/" + checksum_filename
-        response = requests.get(peek_checksum_url)
-        response.raise_for_status()
-        peek_lookup = {}
-        for line in response.text.splitlines():
-            parts = line.split()
-            if len(parts) == 2:
-                peek_lookup[parts[1]] = parts[0]
-
         required_substrings = distro_info["iso_filename_contains"]
-        try:
-            iso_filename = next(
-                f for f in peek_lookup
-                if all(sub in f for sub in required_substrings)
-            )
-        except StopIteration:
-            print(f"Error: couldn't find a matching ISO filename for '{args.distro}' in the checksum file.")
-            return
+        discovery_method = distro_info.get("discovery_method", "checksum_scan")
+
+        if discovery_method == "html_scan":
+            try:
+                iso_filename = discover_via_html_listing(mirrors[0], required_substrings)
+            except ValueError:
+                print(f"Error: couldn't find a matching ISO filename for '{args.distro}' in the directory listing.")
+                return
+        else:
+            peek_checksum_url = mirrors[0].rstrip("/") + "/" + checksum_filename
+            response = requests.get(peek_checksum_url, timeout=10)
+            response.raise_for_status()
+            peek_lookup = {}
+            for line in response.text.splitlines():
+                parts = line.split()
+                if len(parts) == 2:
+                    peek_lookup[parts[1]] = parts[0]
+            try:
+                iso_filename = next(
+                    f for f in peek_lookup
+                    if all(sub in f for sub in required_substrings)
+                )
+            except StopIteration:
+                print(f"Error: couldn't find a matching ISO filename for '{args.distro}' in the checksum file.")
+                return
+
+    if is_unsafe_filename(iso_filename):
+        print(f"Error: discovered filename looks unsafe: '{iso_filename}'")
+        return
 
     iso_urls = [m.rstrip("/") + "/" + iso_filename for m in mirrors]
     best_iso_url = find_fastest_mirror_by_throughput(iso_urls)
     base = best_iso_url.rsplit("/", 1)[0]
 
     try:
-        checksum_url = f"{base}/{checksum_filename}"
-        response = requests.get(checksum_url)
+        if distro_info.get("checksum_discovery_method") == "html_scan":
+            try:
+                checksum_filename_resolved = discover_via_html_listing(base, ["CHECKSUM"], must_end_with="CHECKSUM")
+            except ValueError:
+                print(f"Error: couldn't find a checksum file for '{args.distro}' in the directory listing.")
+                return
+        else:
+            checksum_filename_resolved = checksum_filename.format(iso_filename=iso_filename)
+
+        if is_unsafe_filename(checksum_filename_resolved):
+            print(f"Error: discovered checksum filename looks unsafe: '{checksum_filename_resolved}'")
+            return
+
+        checksum_url = f"{base}/{checksum_filename_resolved}"
+        response = requests.get(checksum_url, timeout=10)
         response.raise_for_status()
-        hash_lookup = {}
-        for line in response.text.splitlines():
-            parts = line.split()
-            if len(parts) == 2:
-                hash_lookup[parts[1]] = parts[0]
+
+        checksum_format = distro_info.get("checksum_format", "multi")
+        if checksum_format == "single":
+            hash_lookup = {iso_filename: response.text.strip()}
+        elif checksum_format == "bsd":
+            hash_lookup = {}
+            for line in response.text.splitlines():
+                if line.upper().startswith(hash_algo.upper()) and "(" in line and ")" in line and "=" in line:
+                    filename = line[line.index("(") + 1 : line.index(")")]
+                    file_hash = line.split("=")[-1].strip()
+                    hash_lookup[filename] = file_hash
+        else:
+            hash_lookup = {}
+            for line in response.text.splitlines():
+                parts = line.split()
+                if len(parts) == 2:
+                    filename = parts[1].lstrip("*")
+                    hash_lookup[filename] = parts[0]
 
         destination_path = os.path.join("ISOx_Downloads", iso_filename)
         print(f"Downloading {iso_filename} from {base} ...")
