@@ -76,7 +76,7 @@
         "hash_algo": "sha256",
         "iso_filename_contains": ["openSUSE", "Tumbleweed", "NET", "Snapshot"]
     },
-     "gentoo": {
+    "gentoo": {
         "mirrors": [
             "https://distfiles.gentoo.org/releases/amd64/autobuilds/current-install-amd64-minimal/",
             "https://mirrors.mit.edu/gentoo-distfiles/releases/amd64/autobuilds/current-install-amd64-minimal/",
@@ -86,5 +86,17 @@
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["install-amd64-minimal"]
-    }   
+    },
+    "void": {
+        "mirrors": [
+            "https://repo-default.voidlinux.org/live/current/",
+            "https://mirrors.summithq.com/voidlinux/live/current",
+            "https://repo-de.voidlinux.org/live/current"
+        ],
+        "checksum_filename": "sha256sum.txt",
+        "checksum_format" : "bsd",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["live-x86_64", "base"]
+    }
 }
