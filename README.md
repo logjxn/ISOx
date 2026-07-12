@@ -51,6 +51,8 @@ Checksum matches, file is good.
 
 Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest cases such as Arch.
 
+Fedora is shown as a more complex example on purpose. It demonstrates the additional options available when a distro needs version discovery, mirror scanning, or custom checksum handling. This is uncommon however, as most only require the basic requirements + maybe 1/2 more.
+
 If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro’s official mirror list and replace the URL in the .json file. The tool will then handle the rest.
 
 ```json
