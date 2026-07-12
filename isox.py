@@ -7,7 +7,7 @@ import os
 from bs4 import BeautifulSoup
 
 def download_file(url, destination_path):
-    response = requests.get(url, stream=True, timeout=10)
+    response = requests.get(url, stream=True, timeout=20)
     response.raise_for_status()
     with open(destination_path, "wb") as f:
         for chunk in response.iter_content(chunk_size=1024 * 1024):
