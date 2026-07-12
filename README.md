@@ -12,27 +12,12 @@ I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually vi
 
 Furthermore, I simply love Linux. It's been my daily driver ever since I discovered it, and I want to see it continue to grow. I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
 
-## Features
-
-- **Config-driven distro support** - supported distros are defined in `distros.json`, not hardcoded, meaning adding a new distro is a json entry, not a code change.
-- **Three ISO-discovery strategies** - covers distros that publish their ISOs in very different ways.
-- **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered automatically by scanning a parent directory and numerically sorting version-like folder names, so outdated isos aren't retrieved.
-- **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
-- **Streamed downloads** - files are downloaded in large chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't hog RAM.
-- **Checksum verification across three real-world formats** - the standard `<hash>  <filename>` format, a single-hash-per-file format, and a GPG-signed BSD-style format are all normalized into the same lookup and compared with `hashlib`.
-- **Multi-algorithm support** - uses `hashlib.new(algo)` rather than hardcoding a specific hash function, so the same code path supports SHA256, SHA512, or anything else `hashlib` supports.
-- **Path-traversal protection** - filenames discovered from remote HTML listings are validated before ever being used in a URL or local file path.
-
 ## Usage
 
 ```bash
 python isox.py arch
 python isox.py debian
-python isox.py kali
-python isox.py alpine
-python isox.py mint
-python isox.py fedora
-python isox.py opensuse
+...
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
@@ -44,6 +29,16 @@ https://ftpmirror.infania.net/mirror/archlinux/iso/latest/archlinux-x86_64.iso s
 Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/latest ...
 Checksum matches, file is good.
 ```
+## Features
+
+- **Config-driven distro support** - supported distros are defined in `distros.json`, not hardcoded, meaning adding a new distro is a json entry, not a code change.
+- **Three ISO-discovery strategies** - covers distros that publish their ISOs in very different ways.
+- **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered automatically by scanning a parent directory and numerically sorting version-like folder names, so outdated isos aren't retrieved.
+- **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
+- **Streamed downloads** - files are downloaded in large chunks (`requests` with `stream=True`) rather than loaded into memory all at once, so multi-GB ISOs don't hog RAM.
+- **Checksum verification across three real-world formats** - the standard `<hash>  <filename>` format, a single-hash-per-file format, and a GPG-signed BSD-style format are all normalized into the same lookup and compared with `hashlib`.
+- **Multi-algorithm support** - uses `hashlib.new(algo)` rather than hardcoding a specific hash function, so the same code path supports SHA256, SHA512, or anything else `hashlib` supports.
+- **Path-traversal protection** - filenames discovered from remote HTML listings are validated before ever being used in a URL or local file path.
 
 ## How it works
 
@@ -102,10 +97,6 @@ Not every distro publishes ISOs the same way, so `main()` picks a strategy per d
 Each candidate mirror is sampled with a ranged GET request, pulling the first ~2MB of the actual ISO via an HTTP `Range` header, and the real transfer speed (bytes/second) is measured over that sample. The mirror with the highest sampled throughput is selected for both the checksum file and the full ISO download.
 
 Mirrors that time out or return an error status are caught (`requests.exceptions.RequestException`) and skipped rather than crashing the whole run.
-
-**v1 → v1.1 change:** the original version selected mirrors using HEAD request response time (latency) rather than throughput. Testing showed the fastest-responding mirror wasn't always the fastest actual download, so mirror selection was rebuilt to sample real throughput directly.
-
-**Why did I change this?:** during testing, a mirror that won the HEAD-request race turned out to be noticeably slower on the actual ISO transfer. Separately, a new Debian release temporarily left two of three mirrors returning 404s; the tool correctly marked them unreachable and completed successfully using the mirror that was current.
 
 ### Checksum verification
 
