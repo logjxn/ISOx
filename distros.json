@@ -11,10 +11,10 @@
     },
     "debian": {
         "mirrors": [
-            "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/",
+            "https://debian.osuosl.org/debian-cdimage/current/amd64/iso-cd/",
             "https://ftp.us.debian.org/debian-cdimage/current/amd64/iso-cd/",
             "https://mirror.cogentco.com/pub/linux/debian-cd/current/amd64/iso-cd/",
-            "https://mirror.csclub.uwaterloo.ca/debian-cd/current/amd64/iso-cd/"
+            "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"
         ],
         "checksum_filename": "SHA256SUMS",
         "hash_algo": "sha256",
