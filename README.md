@@ -121,9 +121,7 @@ print("Verified:", result)  # should print False now, after corruption
 
 ## NOTE
 
-ISOx does **not** currently perform GPG signature verification. Many distributions use GPG signatures to provide an additional layer of authenticity for their release files and checksums. ISOx verifies that the downloaded ISO matches the checksum it receives, but it does not independently verify the origin of that checksum. When adding new distributions or modifying mirrors, please use trusted distribution mirrors and checksum sources.
-
-GPG verification is planned for a future release to provide an additional verification step where distributions support it.
+ISOx does **not** perform GPG signature verification. Many distributions use GPG signatures to provide an additional layer of authenticity for their release files and checksums. ISOx verifies that the downloaded ISO matches the checksum it receives, but it does not independently verify the origin of that checksum. When adding new distributions or modifying mirrors, please use trusted distribution mirrors and checksum sources.
 
 ## Requirements
 
