@@ -12,8 +12,9 @@
     "debian": {
         "mirrors": [
             "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/",
-            "https://mirror.csclub.uwaterloo.ca/debian-cd/current/amd64/iso-cd/",
-            "https://mirror.cogentco.com/pub/linux/debian-cd/current/amd64/iso-cd/"
+            "https://ftp.us.debian.org/debian-cdimage/current/amd64/iso-cd/",
+            "https://mirror.cogentco.com/pub/linux/debian-cd/current/amd64/iso-cd/",
+            "https://mirror.csclub.uwaterloo.ca/debian-cd/current/amd64/iso-cd/"
         ],
         "checksum_filename": "SHA256SUMS",
         "hash_algo": "sha256",
@@ -33,7 +34,8 @@
         "mirrors": [
             "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/",
             "https://mirror.csclub.uwaterloo.ca/alpine/latest-stable/releases/x86_64/",
-            "https://mirror.pilotfiber.com/alpinelinux/latest-stable/releases/x86_64/"
+            "https://mirror.pilotfiber.com/alpinelinux/latest-stable/releases/x86_64/",
+            "https://plug-mirror.rcac.purdue.edu/alpine/latest-stable/releases/x86_64/"
         ],
         "checksum_filename": "{iso_filename}.sha256",
         "discovery_method": "html_scan",
