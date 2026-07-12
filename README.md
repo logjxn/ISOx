@@ -10,6 +10,8 @@ Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
 
 I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. This poses an integrity risk (modified ISOs, corruption, etc.), so I built a tool that automates the whole pipeline and makes verification the default, and not an extra step.
 
+Furthermore, I simply love Linux. It's been my daily driver ever since I discovered it, and I want to see it continue to grow. I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
+
 ## Features
 
 - **Config-driven distro support** - supported distros are defined in `distros.json`, not hardcoded, meaning adding a new distro is a json entry, not a code change.
