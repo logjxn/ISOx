@@ -50,6 +50,7 @@ def find_latest_version_folder(directory_url, min_parts=1):
     return version_folders[-1][1]
 
 def is_unsafe_filename(filename):
+    ## Reject filenames that could use escape characters
     return "/" in filename or "\\" in filename or ".." in filename
 
 def compute_hash(filepath, algo):
@@ -125,6 +126,8 @@ def main():
 
     os.makedirs("ISOx_Downloads", exist_ok=True)
 
+    ## For distros that have no stable/latest alias, th current version needs to be discovered before continuing
+    ## This runs before ISO discovery, since HTML grabbing needs a complete path to get .iso
     if distro_info.get("version_directory", False):
         version_discovery_url = distro_info["version_discovery_url"]
         try:
@@ -135,6 +138,10 @@ def main():
         mirrors = [m.format(version=latest_version) for m in mirrors]
         print(f"Discovered latest version: {latest_version}")
 
+    ## There are three ways to get ISO filenames, picked based on distros.json config fields
+    # 1. "iso_filename" -> static and doesn't change, like Arch
+    # 2. "iso_filename_contains" -> scan a shared checksum file
+    # 3. "iso_filename_contains + html_scan" -> scan directory lising when no shared checksum is available
     if "iso_filename" in distro_info:
         iso_filename = distro_info["iso_filename"]
     else:
@@ -164,7 +171,7 @@ def main():
             except StopIteration:
                 print(f"Error: couldn't find a matching ISO filename for '{args.distro}' in the checksum file.")
                 return
-
+    ## If a filename feels suspicious/has malicious characters, (../evil.iso type), reject it
     if is_unsafe_filename(iso_filename):
         print(f"Error: discovered filename looks unsafe: '{iso_filename}'")
         return
@@ -174,6 +181,7 @@ def main():
     base = best_iso_url.rsplit("/", 1)[0]
 
     try:
+        ## Checksum is either scraped, or built from a template using .format
         if distro_info.get("checksum_discovery_method") == "html_scan":
             try:
                 checksum_filename_resolved = discover_via_html_listing(base, ["CHECKSUM"], must_end_with="CHECKSUM")
@@ -183,6 +191,7 @@ def main():
         else:
             checksum_filename_resolved = checksum_filename.format(iso_filename=iso_filename)
 
+        # Same case as previous
         if is_unsafe_filename(checksum_filename_resolved):
             print(f"Error: discovered checksum filename looks unsafe: '{checksum_filename_resolved}'")
             return
@@ -191,6 +200,10 @@ def main():
         response = requests.get(checksum_url, timeout=10)
         response.raise_for_status()
 
+        ## Some distributions publish their checksums in various ways. This handles that.
+        # "single" - file is the hash
+        # "bsd" - things like Fedora use this
+        # "multi" - Default, i.e. <hash> <filename> type format
         checksum_format = distro_info.get("checksum_format", "multi")
         if checksum_format == "single":
             hash_lookup = {iso_filename: response.text.strip()}
