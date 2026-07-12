@@ -51,6 +51,8 @@ Checksum matches, file is good.
 
 Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest cases such as Arch.
 
+If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro’s official mirror list and replace the URL in the .json file. The tool will then handle the rest.
+
 ```json
 {
     "arch": {
