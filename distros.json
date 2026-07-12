@@ -39,7 +39,7 @@
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["extended","x86_64"]
-     },
+    },
     "mint": {
         "mirrors": [
             "https://pub.linuxmint.io/stable/{version}/",
@@ -65,7 +65,7 @@
         "checksum_format" : "bsd",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["Workstation", "x86_64", "iso"]
+        "iso_filename_contains": ["Workstation", "x86_64"]
     },
     "opensuse" : {
         "mirrors" : [
@@ -75,5 +75,16 @@
         "discovery_method": "checksum_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["openSUSE", "Tumbleweed", "NET", "Snapshot"]
-    }
+    },
+     "gentoo": {
+        "mirrors": [
+            "https://distfiles.gentoo.org/releases/amd64/autobuilds/current-install-amd64-minimal/",
+            "https://mirrors.mit.edu/gentoo-distfiles/releases/amd64/autobuilds/current-install-amd64-minimal/",
+            "https://gentoo.iro.umontreal.ca/gentoo/releases/amd64/autobuilds/current-install-amd64-minimal/"
+        ],
+        "checksum_filename": "{iso_filename}.sha256",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["install-amd64-minimal"]
+    }   
 }
