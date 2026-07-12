@@ -71,7 +71,7 @@ If the included mirrors are not ideal for your location, you can easily update t
         "checksum_format" : "bsd",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["Workstation", "x86_64", "iso"]
+        "iso_filename_contains": ["Workstation", "x86_64"]
     }
 }
 ```
