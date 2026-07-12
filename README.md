@@ -90,7 +90,7 @@ Not every distro publishes ISOs the same way, so `main()` picks a strategy per d
 
 - **`"multi"` (default)** - the standard `<hash>  <filename>` format used by `sha256sum`'s own output.
 - **`"single"`** - the whole file content is treated as the hash, with the filename supplied from context rather than parsed. Available for distros that publish a genuinely bare hash.
-- **`"bsd"`** - parses lines shaped like `SHA256 (filename) = hash`, used by Fedora's GPG-signed files. Only lines starting with the configured `hash_algo` are read, so a file listing multiple algorithms for the same filename can't have the wrong one silently picked.
+- **`"bsd"`** - parses lines shaped like `SHA256 (filename) = hash`, used by some distros. Only lines starting with the configured `hash_algo` are read, so a file listing multiple algorithms for the same filename can't have the wrong one picked.
 
 ### Mirror selection
 
@@ -120,7 +120,10 @@ print("Verified:", result)  # should print False now, after corruption
 ```
 
 ## NOTE
-This tool does NOT perform GPG signature verifications. Many distros use this as further proof an iso came from the correct distributor, i.e. Debian/Fedora. ISOx does not check GPG signatures, if you add any distros please ensure you are using **official** mirrors. Most distros often publish their own mirrorlists. 
+
+ISOx does **not** currently perform GPG signature verification. Many distributions use GPG signatures to provide an additional layer of authenticity for their release files and checksums. ISOx verifies that the downloaded ISO matches the checksum it receives, but it does not independently verify the origin of that checksum. When adding new distributions or modifying mirrors, please use trusted distribution mirrors and checksum sources.
+
+GPG verification is planned for a future release to provide an additional verification step where distributions support it.
 
 ## Requirements
 
