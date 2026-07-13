@@ -126,7 +126,7 @@ def main():
 
     os.makedirs("ISOx_Downloads", exist_ok=True)
 
-    ## For distros that have no stable/latest alias, th current version needs to be discovered before continuing
+    ## For distros that have no stable/latest alias, the current version needs to be discovered before continuing
     ## This runs before ISO discovery, since HTML grabbing needs a complete path to get .iso
     if distro_info.get("version_directory", False):
         version_discovery_url = distro_info["version_discovery_url"]
@@ -141,7 +141,7 @@ def main():
     ## There are three ways to get ISO filenames, picked based on distros.json config fields
     # 1. "iso_filename" -> static and doesn't change, like Arch
     # 2. "iso_filename_contains" -> scan a shared checksum file
-    # 3. "iso_filename_contains + html_scan" -> scan directory lising when no shared checksum is available
+    # 3. "iso_filename_contains + html_scan" -> scan directory listing when no shared checksum is available
     if "iso_filename" in distro_info:
         iso_filename = distro_info["iso_filename"]
     else:
@@ -229,10 +229,13 @@ def main():
         print(f"Error: network request failed ({e}). Try running the script again.")
         return
 
-    if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
-        print("Checksum matches, file is good.")
-    else:
-        print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
+    try:
+        if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
+            print("Checksum matches, file is good.")
+        else:
+            print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
+    except ValueError as e:
+        print(f"Error: could not verify checksum ({e}). The ISO downloaded but was NOT verified.")
 
 if __name__ == "__main__":
     main()
