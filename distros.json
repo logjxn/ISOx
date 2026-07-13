@@ -99,6 +99,6 @@
         "checksum_format" : "bsd",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["live-x86_64", "base"]
+        "iso_filename_contains": ["live-x86_64-2", "base"]
     }
 }
