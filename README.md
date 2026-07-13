@@ -31,7 +31,7 @@ Checksum matches, file is good.
 ```
 ## Features
 
-- **Config-driven distro support** - supported distros are defined in `distros.json`, not hardcoded, meaning adding a new distro is a json entry, not a code change.
+- **Config-driven distro support** - supported distros are defined in `distros.json`, not hardcoded, meaning adding a new distro is a JSON entry, not a code change.
 - **Three ISO-discovery strategies** - covers distros that publish their ISOs in very different ways.
 - **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered automatically by scanning a parent directory and numerically sorting version-like folder names, so outdated isos aren't retrieved.
 - **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
@@ -46,9 +46,9 @@ Checksum matches, file is good.
 
 Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest cases such as Arch.
 
-Fedora is shown as a more complex example on purpose. It demonstrates the additional options available when a distro needs version discovery, mirror scanning, or custom checksum handling. This is uncommon however, as most only require the basic requirements + maybe 1/2 more.
+Fedora is shown as a more complex example on purpose. It demonstrates the additional options available when a distro needs version discovery, mirror scanning, or custom checksum handling. Most distributions only require the basic fields plus one or two optional ones.
 
-If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro’s official mirror list and replace the URL in the .json file. The tool will then handle the rest.
+If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro’s official mirror list and replace the URL in distros.json. The tool will then handle the rest.
 
 ```json
 {
@@ -121,7 +121,13 @@ print("Verified:", result)  # should print False now, after corruption
 
 ## NOTE
 
-ISOx does **not** perform GPG signature verification. Many distributions use GPG signatures to provide an additional layer of authenticity for their release files and checksums. ISOx verifies that the downloaded ISO matches the checksum it receives, but it does not independently verify the origin of that checksum. When adding new distributions or modifying mirrors, please use trusted distribution mirrors and checksum sources.
+ISOx does **not** perform GPG signature verification. Many Linux distributions publish GPG signatures alongside their release files or checksum files. These provide an additional layer of authenticity by allowing you to verify that the checksum has been signed by the distribution's key.
+
+ISOx verifies that the downloaded ISO matches the checksum it retrieves, but it does not verify the authenticity of that checksum with GPG. For most users, this still protects against download or file corruption. 
+
+GPG is not included as it would require maintaining trusted public keys (or fingerprints) for every supported distribution, along with key management and signature validation logic. That complexity conflicts with ISOx's goal of being a lightweight, configuration-driven tool that simplifies Linux media downloads while automatically verifying file integrity against published checksums.
+
+If your threat model requires verifying the origin of release files, consult the distribution's official documentation for its public signing keys and GPG verification instructions.
 
 ## Requirements
 
