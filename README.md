@@ -17,6 +17,13 @@ Furthermore, I simply love Linux. It's been my daily driver ever since I discove
 ```bash
 python isox.py arch
 python isox.py debian
+python isox.py kali
+python isox.py alpine
+python isox.py mint
+python isox.py fedora
+python isox.py opensuse
+python isox.py gentoo
+python isox.py void
 ...
 ```
 
