@@ -108,12 +108,30 @@ def find_fastest_mirror_by_throughput(mirror_urls):
 
 
 def main():
-    with open("distros.json", "r") as f:
-        distros = json.load(f)
+    try:
+        with open("distros.json", "r") as f:
+            distros = json.load(f)
+    except FileNotFoundError:
+        print("Error: distros.json not found. The file is required to configure ISOx.")
+        return
+    except json.JSONDecodeError:
+        print("Error: distros.json is malformed. Please check for typos in your configuration.")
+        return
 
     parser = argparse.ArgumentParser(description="Download and verify Linux ISOs")
-    parser.add_argument("distro", choices=list(distros.keys()), help="Which distro to download")
-    args = parser.parse_args()
+    parser.add_argument("distro", nargs="?", choices=list(distros.keys()), help="Which distro to download")
+    parser.add_argument("--list", action="store_true", help="List available distros and exit")
+    args = parser.parse_args()          
+
+    if args.list:
+        print(f"{len(distros)} distros available:")
+        for name in distros:
+            print(f"  {name}")
+        return
+
+    if not args.distro:
+        parser.error("a distro is required (or use --list to see options)")
+
     distro_info = distros[args.distro]
     required_keys = ["mirrors", "checksum_filename", "hash_algo"]
     missing = [k for k in required_keys if k not in distro_info]
@@ -177,7 +195,11 @@ def main():
         return
 
     iso_urls = [m.rstrip("/") + "/" + iso_filename for m in mirrors]
-    best_iso_url = find_fastest_mirror_by_throughput(iso_urls)
+    try:
+        best_iso_url = find_fastest_mirror_by_throughput(iso_urls)
+    except Exception:
+        print("Error: none of the mirrors for this distro are reachable right now. Try again soon or change mirrors.")
+        return
     base = best_iso_url.rsplit("/", 1)[0]
 
     try:
