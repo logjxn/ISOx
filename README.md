@@ -137,9 +137,9 @@ ISOx does **not** perform GPG signature verification. Many Linux distributions p
 
 ISOx verifies that the downloaded ISO matches the checksum it retrieves, but it does not verify the authenticity of that checksum with GPG. For most users, this still protects against download or file corruption. 
 
-GPG is not included as it would require maintaining trusted public keys (or fingerprints) for every supported distribution, along with key management and signature validation logic. That complexity conflicts with ISOx's goal of being a lightweight, configuration-driven tool that simplifies Linux media downloads while automatically verifying file integrity against published checksums.
+GPG is not included as it would require maintaining trusted public keys (or fingerprints) for every supported distribution, along with key management and signature validation logic. That complexity conflicts with ISOx's goal of being a lightweight, easy to use, and config-driven Linux tool.
 
-If your threat model requires verifying the origin of release files, consult the distribution's official documentation for its public signing keys and GPG verification instructions.
+If your threat model requires verifying the origin of releases, consult the distribution's official documentation for its public signing keys and GPG verification instructions.
 
 ## Requirements
 
