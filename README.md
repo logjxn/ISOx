@@ -24,6 +24,7 @@ python isox.py fedora
 python isox.py opensuse
 python isox.py gentoo
 python isox.py void
+python isox.py garuda
 ...
 ```
 
