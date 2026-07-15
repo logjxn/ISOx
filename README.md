@@ -13,7 +13,12 @@ I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually vi
 Furthermore, I simply love Linux. It's been my daily driver ever since I discovered it, and I want to see it continue to grow. I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
 
 ## Usage
+List every supported distro:
+```bash
+python isox.py --list
+```
 
+Download and verify a distro:
 ```bash
 python isox.py arch
 python isox.py debian
@@ -25,7 +30,6 @@ python isox.py opensuse
 python isox.py gentoo
 python isox.py void
 python isox.py garuda
-...
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
