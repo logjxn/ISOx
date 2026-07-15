@@ -92,8 +92,8 @@
     "void": {
         "mirrors": [
             "https://repo-default.voidlinux.org/live/current/",
-            "https://mirrors.summithq.com/voidlinux/live/current",
-            "https://repo-de.voidlinux.org/live/current"
+            "https://mirrors.summithq.com/voidlinux/live/current/",
+            "https://repo-de.voidlinux.org/live/current/"
         ],
         "checksum_filename": "sha256sum.txt",
         "checksum_format" : "bsd",
