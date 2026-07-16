@@ -8,6 +8,8 @@ __pycache__/
 
 #ISOx Runtime Folders
 ISOx_Downloads/
+*.part
+*.part.meta
 
 # Distribution / packaging
 .Python

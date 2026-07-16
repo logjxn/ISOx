@@ -7,11 +7,58 @@ import os
 from bs4 import BeautifulSoup
 
 def download_file(url, destination_path):
-    response = requests.get(url, stream=True, timeout=20)
+    part_path = destination_path + ".part"
+    headers = {}
+    existing = 0
+    if os.path.exists(part_path):
+        existing = os.path.getsize(part_path)
+        if existing > 0:
+            headers["Range"] = f"bytes={existing}-"
+
+    response = requests.get(url, stream=True, timeout=20, headers=headers)
+
+    if response.status_code == 416:
+        os.remove(part_path)
+        return download_file(url, destination_path)
     response.raise_for_status()
-    with open(destination_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=1024 * 1024):
-            f.write(chunk)
+
+    if existing > 0 and response.status_code != 206:
+        existing = 0
+        mode = "wb"
+    else:
+        mode = "ab"
+
+    if response.status_code == 206:
+        content_range = response.headers.get("Content-Range")
+        total = int(content_range.split("/")[-1]) if content_range else None
+    else:
+        content_length = response.headers.get("Content-Length")
+        total = int(content_length) if content_length else None
+
+    downloaded = existing
+    start = time.time()
+    bar_width = 30
+
+    try:
+        with open(part_path, mode) as f:
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                f.write(chunk)
+                downloaded += len(chunk)
+                elapsed = time.time() - start
+                speed = (downloaded - existing) / elapsed if elapsed > 0 else 0
+                if total:
+                    filled = int(bar_width * downloaded / total)
+                    bar = "#" * filled + "-" * (bar_width - filled)
+                    percent = downloaded / total * 100
+                    print(f"\r[{bar}] {percent:5.1f}%  {speed/1_000_000:6.2f} MB/s", end="", flush=True)
+                else:
+                    print(f"\rDownloaded {downloaded/1_000_000:.1f} MB  {speed/1_000_000:6.2f} MB/s", end="", flush=True)
+    except OSError as e:
+        print()
+        raise OSError(f"Couldn't write to {part_path} ({e}). Check available disk space.") from e
+
+    print()
+    os.replace(part_path, destination_path)
 
 def discover_via_html_listing(directory_url, required_substrings, must_end_with=".iso"):
     response = requests.get(directory_url, timeout=10)
@@ -255,9 +302,15 @@ def main():
         if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
             print("Checksum matches, file is good.")
         else:
+            quarantine = destination_path + ".FAILED"
+            os.replace(destination_path, quarantine)
             print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
+            print(f"Renamed to {quarantine} so it can't be mistaken for a verified ISO.")
     except ValueError as e:
+        quarantine = destination_path + ".UNVERIFIED"
+        os.replace(destination_path, quarantine)
         print(f"Error: could not verify checksum ({e}). The ISO downloaded but was NOT verified.")
+        print(f"Renamed to {quarantine}.")
 
 if __name__ == "__main__":
     main()
