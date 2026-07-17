@@ -57,6 +57,14 @@ def part_is_stale(part_path, meta_path, fingerprint):
     return (time.time() - os.path.getmtime(part_path)) > PART_MAX_AGE_SECONDS
 
 
+def total_size_from(response):
+    if response.status_code == 206:
+        total = response.headers.get("Content-Range", "").rsplit("/", 1)[-1]
+        return int(total) if total.isdigit() else None
+    length = response.headers.get("Content-Length")
+    return int(length) if length and length.isdigit() else None
+
+
 def validate_distro_config(name, distro_info):
     missing = [
         k for k in ("mirrors", "checksum_filename", "hash_algo") if k not in distro_info
@@ -65,6 +73,15 @@ def validate_distro_config(name, distro_info):
         raise ISOxError(
             f"'{name}' entry in distros.json is missing: {', '.join(missing)}"
         )
+    if (
+        distro_info.get("version_directory")
+        and "version_discovery_url" not in distro_info
+    ):
+        raise ISOxError(
+            f"'{name}' sets version_directory but has no version_discovery_url."
+        )
+    if "iso_filename" not in distro_info and "iso_filename_contains" not in distro_info:
+        raise ISOxError(f"'{name}' needs either iso_filename or iso_filename_contains.")
 
 
 def resolve_iso_filename(name, distro_info, mirrors, checksum_filename):
@@ -105,9 +122,7 @@ def resolve_checksum_filename(name, distro_info, base, checksum_filename, iso_fi
     # Checksum is either scraped or built from a template (.format)
     if distro_info.get("checksum_discovery_method") == "html_scan":
         try:
-            return discover_via_html_listing(
-                base, ["CHECKSUM"], must_end_with="CHECKSUM"
-            )
+            return discover_via_html_listing(base, [], must_end_with="CHECKSUM")
         except ValueError as e:
             raise ISOxError(
                 f"couldn't find a checksum file for '{name}' in the directory listing at {base}."
@@ -180,13 +195,7 @@ def download_file(url, destination_path):
         if existing > 0:
             print(f"Resuming from {existing / 1_000_000:.1f} MB ...")
 
-        if response.status_code == 206:
-            content_range = response.headers.get("Content-Range")
-            total = int(content_range.split("/")[-1]) if content_range else None
-        else:
-            content_length = response.headers.get("Content-Length")
-            total = int(content_length) if content_length else None
-
+        total = total_size_from(response)
         write_meta(meta_path, fingerprint)
 
         downloaded = existing
@@ -200,11 +209,11 @@ def download_file(url, destination_path):
                 elapsed = time.time() - start
                 speed = (downloaded - existing) / elapsed if elapsed > 0 else 0
                 if total:
-                    filled = int(bar_width * downloaded / total)
+                    fraction = min(downloaded / total, 1.0)
+                    filled = int(bar_width * fraction)
                     bar = "#" * filled + "-" * (bar_width - filled)
-                    percent = downloaded / total * 100
                     print(
-                        f"\r[{bar}] {percent:5.1f}%  {speed / 1_000_000:6.2f} MB/s",
+                        f"\r[{bar}] {fraction * 100:5.1f}%  {speed / 1_000_000:6.2f} MB/s",
                         end="",
                         flush=True,
                     )
@@ -214,7 +223,8 @@ def download_file(url, destination_path):
                         end="",
                         flush=True,
                     )
-
+    # RequestException subclasses OSError, so it must be caught first.
+    # or, the handler below would eat every network failure and say it's a disk error.
     except requests.exceptions.RequestException as e:
         print()
         raise ISOxError(
@@ -222,7 +232,7 @@ def download_file(url, destination_path):
         ) from e
     except OSError as e:
         print()
-        raise OSError(
+        raise ISOxError(
             f"Couldn't write to {part_path} ({e}). Check available disk space."
         ) from e
 
@@ -315,9 +325,8 @@ def check_mirror_throughput(url, sample_bytes=2_000_000):
             downloaded += len(chunk)
             if downloaded >= sample_bytes:
                 break
-        elapsed = time.time() - start
-        speed = downloaded / elapsed
-        return speed
+        elapsed = max(time.time() - start, 1e-6)  # Clock granularity can report 0
+        return downloaded / elapsed
     except requests.exceptions.RequestException:
         return None
 
