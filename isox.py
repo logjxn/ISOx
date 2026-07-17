@@ -7,11 +7,54 @@ import os
 import sys
 from bs4 import BeautifulSoup
 
+PART_MAX_AGE_SECONDS = 24 * 60 * 60
+
 
 class ISOxError(Exception):
     """A failure ISOx understands well enough to explain in one line."""
 
     pass
+
+
+def server_fingerprint(response):
+    # Whatever the server gives to identify the version of the file given
+    return response.headers.get("ETag") or response.headers.get("Last-Modified")
+
+
+def read_meta(meta_path):
+    try:
+        with open(meta_path, "r") as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def write_meta(meta_path, fingerprint):
+    if fingerprint is None:
+        return
+    try:
+        with open(meta_path, "w") as f:
+            f.write(fingerprint)
+    except OSError:
+        pass  # Non-fatal: worst case scenario is a .part is discarded
+
+
+def discard_part(part_path, meta_path):
+    for path in (part_path, meta_path):
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+
+
+def part_is_stale(part_path, meta_path, fingerprint):
+    # Distros with a fixed filename reuse the same name for new ISOs every month.
+    # Appending June's bytes to July's files for example would corrupt the download.
+    stored = read_meta(meta_path)
+    if fingerprint is not None:
+        return stored != fingerprint
+    # Server won't identify the file, so falling back to age as an estimate is an option
+    return (time.time() - os.path.getmtime(part_path)) > PART_MAX_AGE_SECONDS
 
 
 def validate_distro_config(name, distro_info):
@@ -101,38 +144,55 @@ def parse_checksum_file(text, checksum_format, hash_algo, iso_filename):
 
 def download_file(url, destination_path):
     part_path = destination_path + ".part"
-    headers = {}
-    existing = 0
-    if os.path.exists(part_path):
-        existing = os.path.getsize(part_path)
-        if existing > 0:
-            headers["Range"] = f"bytes={existing}-"
+    meta_path = part_path + ".meta"
 
-    response = requests.get(url, stream=True, timeout=20, headers=headers)
-
-    if response.status_code == 416:
-        os.remove(part_path)
-        return download_file(url, destination_path)
-    response.raise_for_status()
-
-    if existing > 0 and response.status_code != 206:
-        existing = 0
-        mode = "wb"
-    else:
-        mode = "ab"
-
-    if response.status_code == 206:
-        content_range = response.headers.get("Content-Range")
-        total = int(content_range.split("/")[-1]) if content_range else None
-    else:
-        content_length = response.headers.get("Content-Length")
-        total = int(content_length) if content_length else None
-
-    downloaded = existing
-    start = time.time()
-    bar_width = 30
+    existing = os.path.getsize(part_path) if os.path.exists(part_path) else 0
+    headers = {"Range": f"bytes={existing}-"} if existing > 0 else {}
 
     try:
+        response = requests.get(url, stream=True, timeout=20, headers=headers)
+
+        # .part is bigger than server's file, causing issues
+        if response.status_code == 416:
+            response.close()
+            discard_part(part_path, meta_path)
+            return download_file(url, destination_path)
+
+        response.raise_for_status()
+        fingerprint = server_fingerprint(response)
+
+        if (
+            existing > 0
+            and response.status_code == 206
+            and part_is_stale(part_path, meta_path, fingerprint)
+        ):
+            response.close()
+            print("Partial download doesn't match file on server. Starting fresh.")
+            discard_part(part_path, meta_path)
+            return download_file(url, destination_path)
+
+        if existing > 0 and response.status_code != 206:
+            existing = 0  # Server ignored Range header, so start over
+            mode = "wb"  # Starts file from 0
+        else:
+            mode = "ab"  # Appends bytes to end
+
+        if existing > 0:
+            print(f"Resuming from {existing / 1_000_000:.1f} MB ...")
+
+        if response.status_code == 206:
+            content_range = response.headers.get("Content-Range")
+            total = int(content_range.split("/")[-1]) if content_range else None
+        else:
+            content_length = response.headers.get("Content-Length")
+            total = int(content_length) if content_length else None
+
+        write_meta(meta_path, fingerprint)
+
+        downloaded = existing
+        start = time.time()
+        bar_width = 30
+
         with open(part_path, mode) as f:
             for chunk in response.iter_content(chunk_size=1024 * 1024):
                 f.write(chunk)
@@ -154,6 +214,12 @@ def download_file(url, destination_path):
                         end="",
                         flush=True,
                     )
+
+    except requests.exceptions.RequestException as e:
+        print()
+        raise ISOxError(
+            f"download failed ({e}). Re-run to resume from where it stopped."
+        ) from e
     except OSError as e:
         print()
         raise OSError(
@@ -162,6 +228,7 @@ def download_file(url, destination_path):
 
     print()
     os.replace(part_path, destination_path)
+    discard_part(part_path, meta_path)
 
 
 def discover_via_html_listing(directory_url, required_substrings, must_end_with=".iso"):
