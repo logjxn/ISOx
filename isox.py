@@ -14,6 +14,91 @@ class ISOxError(Exception):
     pass
 
 
+def validate_distro_config(name, distro_info):
+    missing = [
+        k for k in ("mirrors", "checksum_filename", "hash_algo") if k not in distro_info
+    ]
+    if missing:
+        raise ISOxError(
+            f"'{name}' entry in distros.json is missing: {', '.join(missing)}"
+        )
+
+
+def resolve_iso_filename(name, distro_info, mirrors, checksum_filename):
+    # There are three ways to get ISO filenames, picked based on distros.json config fields
+    # 1. "iso_filename" -> static and doesn't change, like Arch
+    # 2. "iso_filename_contains" -> scan a shared checksum file
+    # 3. "iso_filename_contains" + html_scan -> scan directory listing when no shared checksum exists
+    if "iso_filename" in distro_info:
+        return distro_info["iso_filename"]
+
+    required_substrings = distro_info["iso_filename_contains"]
+
+    if distro_info.get("discovery_method", "checksum_scan") == "html_scan":
+        try:
+            return discover_via_html_listing(mirrors[0], required_substrings)
+        except ValueError as e:
+            raise ISOxError(
+                f"couldn't find a matching ISO filename for '{name}' in the directory listing."
+            ) from e
+
+    peek_url = mirrors[0].rstrip("/") + "/" + checksum_filename
+    response = requests.get(peek_url, timeout=10)
+    response.raise_for_status()
+    peek_lookup = parse_checksum_file(
+        response.text, "multi", distro_info["hash_algo"], None
+    )
+    try:
+        return next(
+            f for f in peek_lookup if all(sub in f for sub in required_substrings)
+        )
+    except StopIteration as e:
+        raise ISOxError(
+            f"couldn't find a matching ISO filename for '{name}' in the checksum file at {peek_url}."
+        ) from e
+
+
+def resolve_checksum_filename(name, distro_info, base, checksum_filename, iso_filename):
+    # Checksum is either scraped or built from a template (.format)
+    if distro_info.get("checksum_discovery_method") == "html_scan":
+        try:
+            return discover_via_html_listing(
+                base, ["CHECKSUM"], must_end_with="CHECKSUM"
+            )
+        except ValueError as e:
+            raise ISOxError(
+                f"couldn't find a checksum file for '{name}' in the directory listing at {base}."
+            ) from e
+    return checksum_filename.format(iso_filename=iso_filename)
+
+
+def parse_checksum_file(text, checksum_format, hash_algo, iso_filename):
+    # Some distributions publish their checksums in various ways. This handles that.
+    # "single" - file is the hash
+    # "bsd" - things like Fedora use this
+    # "multi" - Default, i.e. <hash> <filename> type format
+    if checksum_format == "single":
+        return {iso_filename: text.strip()}
+
+    hash_lookup = {}
+    if checksum_format == "bsd":
+        for line in text.splitlines():
+            if (
+                line.upper().startswith(hash_algo.upper())
+                and "(" in line
+                and ")" in line
+                and "=" in line
+            ):
+                filename = line[line.index("(") + 1 : line.index(")")]
+                hash_lookup[filename] = line.split("=")[-1].strip()
+    else:
+        for line in text.splitlines():
+            parts = line.split()
+            if len(parts) == 2:
+                hash_lookup[parts[1].lstrip("*")] = parts[0]
+    return hash_lookup
+
+
 def download_file(url, destination_path):
     part_path = destination_path + ".part"
     headers = {}
@@ -224,12 +309,8 @@ def run():
         parser.error("a distro is required (or use --list to see options)")
 
     distro_info = distros[args.distro]
-    required_keys = ["mirrors", "checksum_filename", "hash_algo"]
-    missing = [k for k in required_keys if k not in distro_info]
-    if missing:
-        raise ISOxError(
-            f"'{args.distro}' entry in distros.json is missing: {', '.join(missing)}"
-        )
+    validate_distro_config(args.distro, distro_info)
+
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]
     hash_algo = distro_info["hash_algo"]
@@ -249,44 +330,9 @@ def run():
         mirrors = [m.format(version=latest_version) for m in mirrors]
         print(f"Discovered latest version: {latest_version}")
 
-    # There are three ways to get ISO filenames, picked based on distros.json config fields
-    # 1. "iso_filename" -> static and doesn't change, like Arch
-    # 2. "iso_filename_contains" -> scan a shared checksum file
-    # 3. "iso_filename_contains + html_scan" -> scan directory listing when no shared checksum is available
-    if "iso_filename" in distro_info:
-        iso_filename = distro_info["iso_filename"]
-    else:
-        required_substrings = distro_info["iso_filename_contains"]
-        discovery_method = distro_info.get("discovery_method", "checksum_scan")
-
-        if discovery_method == "html_scan":
-            try:
-                iso_filename = discover_via_html_listing(
-                    mirrors[0], required_substrings
-                )
-            except ValueError as e:
-                raise ISOxError(
-                    f"couldn't find a matching ISO filename for '{args.distro}' in the directory listing."
-                ) from e
-        else:
-            peek_checksum_url = mirrors[0].rstrip("/") + "/" + checksum_filename
-            response = requests.get(peek_checksum_url, timeout=10)
-            response.raise_for_status()
-            peek_lookup = {}
-            for line in response.text.splitlines():
-                parts = line.split()
-                if len(parts) == 2:
-                    peek_lookup[parts[1]] = parts[0]
-            try:
-                iso_filename = next(
-                    f
-                    for f in peek_lookup
-                    if all(sub in f for sub in required_substrings)
-                )
-            except StopIteration as e:
-                raise ISOxError(
-                    f"couldn't find a matching ISO filename for '{args.distro}' in the checksum file."
-                ) from e
+    iso_filename = resolve_iso_filename(
+        args.distro, distro_info, mirrors, checksum_filename
+    )
 
     # If a filename looks suspicious, (../evil.iso type), reject it
     if is_unsafe_filename(iso_filename):
@@ -296,67 +342,29 @@ def run():
     best_iso_url = find_fastest_mirror_by_throughput(iso_urls)
     base = best_iso_url.rsplit("/", 1)[0]
 
-    try:
-        # Checksum is either scraped, or built from a template using .format
-        if distro_info.get("checksum_discovery_method") == "html_scan":
-            try:
-                checksum_filename_resolved = discover_via_html_listing(
-                    base, ["CHECKSUM"], must_end_with="CHECKSUM"
-                )
-            except ValueError as e:
-                raise ISOxError(
-                    f"couldn't find a checksum file for '{args.distro}' in the directory listing."
-                ) from e
-        else:
-            checksum_filename_resolved = checksum_filename.format(
-                iso_filename=iso_filename
-            )
+    checksum_filename_resolved = resolve_checksum_filename(
+        args.distro, distro_info, base, checksum_filename, iso_filename
+    )
 
-        # Same case as previous
-        if is_unsafe_filename(checksum_filename_resolved):
-            raise ISOxError(
-                f"discovered checksum filename looks unsafe: '{checksum_filename_resolved}'"
-            )
-
-        checksum_url = f"{base}/{checksum_filename_resolved}"
-        response = requests.get(checksum_url, timeout=10)
-        response.raise_for_status()
-
-        # Some distributions publish their checksums in various ways. This handles that.
-        # "single" - file is the hash
-        # "bsd" - things like Fedora use this
-        # "multi" - Default, i.e. <hash> <filename> type format
-        checksum_format = distro_info.get("checksum_format", "multi")
-        if checksum_format == "single":
-            hash_lookup = {iso_filename: response.text.strip()}
-        elif checksum_format == "bsd":
-            hash_lookup = {}
-            for line in response.text.splitlines():
-                if (
-                    line.upper().startswith(hash_algo.upper())
-                    and "(" in line
-                    and ")" in line
-                    and "=" in line
-                ):
-                    filename = line[line.index("(") + 1: line.index(")")]
-                    file_hash = line.split("=")[-1].strip()
-                    hash_lookup[filename] = file_hash
-        else:
-            hash_lookup = {}
-            for line in response.text.splitlines():
-                parts = line.split()
-                if len(parts) == 2:
-                    filename = parts[1].lstrip("*")
-                    hash_lookup[filename] = parts[0]
-
-        destination_path = os.path.join("ISOx_Downloads", iso_filename)
-        print(f"Downloading {iso_filename} from {base} ...")
-        download_file(best_iso_url, destination_path)
-    except requests.exceptions.RequestException as e:
+    if is_unsafe_filename(checksum_filename_resolved):
         raise ISOxError(
-            f"network request failed ({e}). Try running the script again."
-        ) from e
+            f"discovered checksum filename looks unsafe: '{checksum_filename_resolved}'"
+        )
 
+    response = requests.get(f"{base}/{checksum_filename_resolved}", timeout=10)
+    response.raise_for_status()
+    hash_lookup = parse_checksum_file(
+        response.text,
+        distro_info.get("checksum_format", "multi"),
+        hash_algo,
+        iso_filename,
+    )
+
+    destination_path = os.path.join("ISOx_Downloads", iso_filename)
+    print(f"Downloading {iso_filename} from {base} ...")
+    download_file(best_iso_url, destination_path)
+
+    # Stays a local handler since it has the purpose of quarantining, and is not needed elsewhere.
     try:
         if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
             print("Checksum matches, file is good.")
