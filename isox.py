@@ -4,7 +4,12 @@ import time
 import argparse
 import json
 import os
+import sys
 from bs4 import BeautifulSoup
+
+class ISOxError(Exception):
+    """A failure ISOx understands well enough to explain in one line."""
+    pass
 
 def download_file(url, destination_path):
     part_path = destination_path + ".part"
@@ -149,21 +154,20 @@ def find_fastest_mirror_by_throughput(mirror_urls):
             print(f"{url} is unreachable")
 
     if not results:
-        raise Exception("No reachable mirrors")
+        raise ISOxError("none of the mirrors for this distro are reachable right now. "
+                        "Try again soon, or swap the mirrors in distros.json.")
     fastest = max(results, key=results.get)
     return fastest
 
 
-def main():
+def run():
     try:
         with open("distros.json", "r") as f:
             distros = json.load(f)
-    except FileNotFoundError:
-        print("Error: distros.json not found. The file is required to configure ISOx.")
-        return
-    except json.JSONDecodeError:
-        print("Error: distros.json is malformed. Please check for typos in your configuration.")
-        return
+    except FileNotFoundError as e:
+        raise ISOxError("distros.json not found. The file is required to configure ISOx.") from e
+    except json.JSONDecodeError as e:
+        raise ISOxError("distros.json is malformed. Please check for typos in your configuration.") from e
 
     parser = argparse.ArgumentParser(description="Download and verify Linux ISOs")
     parser.add_argument("distro", nargs="?", choices=list(distros.keys()), help="Which distro to download")
@@ -183,8 +187,7 @@ def main():
     required_keys = ["mirrors", "checksum_filename", "hash_algo"]
     missing = [k for k in required_keys if k not in distro_info]
     if missing:
-        print(f"Error: '{args.distro}' entry in distros.json is missing: {', '.join(missing)}")
-        return
+        raise ISOxError(f"'{args.distro}' entry in distros.json is missing: {', '.join(missing)}")
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]
     hash_algo = distro_info["hash_algo"]
@@ -197,9 +200,8 @@ def main():
         version_discovery_url = distro_info["version_discovery_url"]
         try:
             latest_version = find_latest_version_folder(version_discovery_url)
-        except ValueError:
-            print(f"Error: couldn't find a version folder for '{args.distro}' at {version_discovery_url}")
-            return
+        except ValueError as e:
+            raise ISOxError(f"couldn't find a version folder for '{args.distro}' at {version_discovery_url}") from e
         mirrors = [m.format(version=latest_version) for m in mirrors]
         print(f"Discovered latest version: {latest_version}")
 
@@ -216,9 +218,8 @@ def main():
         if discovery_method == "html_scan":
             try:
                 iso_filename = discover_via_html_listing(mirrors[0], required_substrings)
-            except ValueError:
-                print(f"Error: couldn't find a matching ISO filename for '{args.distro}' in the directory listing.")
-                return
+            except ValueError as e:
+                raise ISOxError(f"couldn't find a matching ISO filename for '{args.distro}' in the directory listing.") from e
         else:
             peek_checksum_url = mirrors[0].rstrip("/") + "/" + checksum_filename
             response = requests.get(peek_checksum_url, timeout=10)
@@ -233,20 +234,15 @@ def main():
                     f for f in peek_lookup
                     if all(sub in f for sub in required_substrings)
                 )
-            except StopIteration:
-                print(f"Error: couldn't find a matching ISO filename for '{args.distro}' in the checksum file.")
-                return
-    ## If a filename feels suspicious/has malicious characters, (../evil.iso type), reject it
+            except StopIteration as e:
+                raise ISOxError(f"couldn't find a matching ISO filename for '{args.distro}' in the checksum file.") from e
+
+    ## If a filename looks suspicious, (../evil.iso type), reject it
     if is_unsafe_filename(iso_filename):
-        print(f"Error: discovered filename looks unsafe: '{iso_filename}'")
-        return
+        raise ISOxError(f"discovered filename looks unsafe: '{iso_filename}'")
 
     iso_urls = [m.rstrip("/") + "/" + iso_filename for m in mirrors]
-    try:
-        best_iso_url = find_fastest_mirror_by_throughput(iso_urls)
-    except Exception:
-        print("Error: none of the mirrors for this distro are reachable right now. Try again soon or change mirrors.")
-        return
+    best_iso_url = find_fastest_mirror_by_throughput(iso_urls)
     base = best_iso_url.rsplit("/", 1)[0]
 
     try:
@@ -254,16 +250,14 @@ def main():
         if distro_info.get("checksum_discovery_method") == "html_scan":
             try:
                 checksum_filename_resolved = discover_via_html_listing(base, ["CHECKSUM"], must_end_with="CHECKSUM")
-            except ValueError:
-                print(f"Error: couldn't find a checksum file for '{args.distro}' in the directory listing.")
-                return
+            except ValueError as e:
+                raise ISOxError(f"couldn't find a checksum file for '{args.distro}' in the directory listing.") from e
         else:
             checksum_filename_resolved = checksum_filename.format(iso_filename=iso_filename)
 
         # Same case as previous
         if is_unsafe_filename(checksum_filename_resolved):
-            print(f"Error: discovered checksum filename looks unsafe: '{checksum_filename_resolved}'")
-            return
+            raise ISOxError(f"discovered checksum filename looks unsafe: '{checksum_filename_resolved}'")
 
         checksum_url = f"{base}/{checksum_filename_resolved}"
         response = requests.get(checksum_url, timeout=10)
@@ -295,22 +289,39 @@ def main():
         print(f"Downloading {iso_filename} from {base} ...")
         download_file(best_iso_url, destination_path)
     except requests.exceptions.RequestException as e:
-        print(f"Error: network request failed ({e}). Try running the script again.")
-        return
+        raise ISOxError(f"network request failed ({e}). Try running the script again.") from e
 
     try:
         if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
             print("Checksum matches, file is good.")
-        else:
-            quarantine = destination_path + ".FAILED"
-            os.replace(destination_path, quarantine)
-            print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
-            print(f"Renamed to {quarantine} so it can't be mistaken for a verified ISO.")
+            return 
+        quarantine = destination_path + ".FAILED"
+        os.replace(destination_path, quarantine)
+        print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
+        print(f"Renamed to {quarantine} so it can't be mistaken for a verified ISO.")
     except ValueError as e:
         quarantine = destination_path + ".UNVERIFIED"
         os.replace(destination_path, quarantine)
         print(f"Error: could not verify checksum ({e}). The ISO downloaded but was NOT verified.")
         print(f"Renamed to {quarantine}.")
+    sys.exit(1)
+
+def main():
+    try:
+        run()
+    except ISOxError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    ## Safety Measures: for calls that didn't get a clean error message.
+    except requests.exceptions.RequestException as e:
+        print(f"Error: network request failed ({e}). Try running the tool again.")
+        sys.exit(1)
+    except OSError as e:
+        print(f"Error: filesystem operation failed ({e}).")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted. Any partial download was kept, re-run to resume.")
+        sys.exit(130)
 
 if __name__ == "__main__":
     main()
