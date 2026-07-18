@@ -1,5 +1,11 @@
 # ISOx
 
+![Python](https://img.shields.io/badge/python-3.x-blue)
+![License](https://img.shields.io/github/license/logjxn/ISOx)
+![Release](https://img.shields.io/github/v/release/logjxn/ISOx)
+![OS](https://img.shields.io/badge/platform-Linux-orange)
+![Status](https://img.shields.io/badge/status-active-success)
+
 A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest available source, and cryptographically verifies file integrity against source checksums, so you never have to manually hunt down hashes or skip verification because it's tedious.
 
 ```
