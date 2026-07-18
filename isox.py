@@ -73,6 +73,10 @@ def validate_distro_config(name, distro_info):
         raise ISOxError(
             f"'{name}' entry in distros.json is missing: {', '.join(missing)}"
         )
+    if not distro_info["mirrors"]:
+        raise ISOxError(
+            f"'{name}' has an empty mirrors list. At least one mirror URL is required."
+        )
     if (
         distro_info.get("version_directory")
         and "version_discovery_url" not in distro_info
