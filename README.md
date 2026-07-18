@@ -173,7 +173,7 @@ Renamed to ISOx_Downloads/archlinux-x86_64.iso.FAILED so it can't be mistaken fo
 **This was tested:** I created a separate script to append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always reporting success.
 *The script I used to test corruption is below. Feel free to try for yourself.*
 ```python
-from isox import compute_hash, verify_checksum
+from isox import verify_checksum
 import requests
 
 response = requests.get("https://fastly.mirror.pkgbuild.com/iso/latest/sha256sums.txt")
