@@ -109,5 +109,19 @@
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["garuda", "mokka"]
+    },
+    "ubuntu": {
+        "mirrors": [
+            "https://releases.ubuntu.com/{version}/",
+            "https://mirror.arizona.edu/ubuntu-releases/{version}/",
+            "https://ubuntu-releases.mirrorservice.org/releases/{version}/"
+        ],
+        "version_directory": true,
+        "version_discovery_url": "https://releases.ubuntu.com/",
+        "version_scheme": "ubuntu_lts",
+        "checksum_filename": "SHA256SUMS",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["desktop", "amd64"]
     }
 }
