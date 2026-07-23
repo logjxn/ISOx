@@ -209,8 +209,12 @@ If your threat model requires verifying the origin of releases, consult the dist
 ## Requirements
 
 - Python 3.x
-- `requests` (`pip install requests`)
-- `beautifulsoup4` (`pip install beautifulsoup4`) - used for HTML directory-listing discovery
+- `requests`
+- `beautifulsoup4` - used for HTML directory-listing discovery
+
+Install both with:
+
+    pip install -r requirements.txt
 
 Everything else (`hashlib`, `json`, `argparse`, `os`, `sys`, `time`) is part of the Python standard library.
 
