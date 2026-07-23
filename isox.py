@@ -286,6 +286,32 @@ def find_latest_version_folder(directory_url, min_parts=1):
     return version_folders[-1][1]
 
 
+def find_latest_lts_folder(directory_url):
+    # Ubuntu LTS releases are always "YY.04" with YY even; this also
+    # skips dated snapshot folders like "24.04.2" in favor of the
+    # "24.04" alias, which Canonical keeps updated with the latest ISO.
+    response = requests.get(directory_url, timeout=10)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
+
+    lts_folders = []
+    for link in links:
+        cleaned = link.rstrip("/")
+        parts = cleaned.split(".")
+        if len(parts) == 2 and all(p.isdigit() for p in parts):
+            year, month = int(parts[0]), int(parts[1])
+            if month == 4 and year % 2 == 0:
+                lts_folders.append((year, cleaned))
+
+    if not lts_folders:
+        raise ValueError("No LTS-style (YY.04) folders found in directory listing")
+
+    lts_folders.sort()
+    return lts_folders[-1][1]
+
+
 def is_unsafe_filename(filename):
     # Reject filenames that could use escape characters
     return "/" in filename or "\\" in filename or ".." in filename
@@ -401,8 +427,13 @@ def run():
     # This runs before ISO discovery, since HTML grabbing needs a complete path to get .iso
     if distro_info.get("version_directory", False):
         version_discovery_url = distro_info["version_discovery_url"]
+        finder = (
+            find_latest_lts_folder
+            if distro_info.get("version_scheme") == "ubuntu_lts"
+            else find_latest_version_folder
+        )
         try:
-            latest_version = find_latest_version_folder(version_discovery_url)
+            latest_version = finder(version_discovery_url)
         except ValueError as e:
             raise ISOxError(
                 f"couldn't find a version folder for '{args.distro}' at {version_discovery_url}"
