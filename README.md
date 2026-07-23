@@ -85,7 +85,7 @@ Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at mini
 
 Fedora is shown as a more complex example on purpose. It demonstrates the additional options available when a distro needs version discovery, mirror scanning, or custom checksum handling. Most distributions only require the basic fields plus one or two optional ones.
 
-If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro’s official mirror list and replace the URL in distros.json. The tool will then handle the rest.
+If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro’s official mirror list and replace the URL in distros.json. The  tool will then handle the rest.
 
 ```json
 {
@@ -122,6 +122,8 @@ Not every distro publishes ISOs the same way, so the tool picks a strategy per d
 - **`"iso_filename_contains"` + `"discovery_method": "html_scan"`** - for distros with no single shared checksum file to scan. Scrapes the actual directory listing HTML with BeautifulSoup and filters `<a href>` links ending in `.iso` that match all the necessary substrings.
 
 **Version-folder auto-discovery** (`"version_directory": true`) is a separate, earlier step for distros with no stable "latest" URL alias at all. Before any ISO discovery happens, the parent directory is scraped, version-numbered folder names are parsed and sorted *numerically*, and the newest one is spliced into every `{version}` placeholder across the mirror URLs. 
+
+For Ubuntu, `version_scheme` is optional and only applies alongside version_directory. Left out, the newest version-numbered folder is selected. Set to "ubuntu_lts", only even-year .04 folders match, so `python isox ubuntu` resolves to the latest LTS. Interim releases are skipped intentionally, since LTS is the better default for a daily driver.
 
 ### Checksum parsing
 
