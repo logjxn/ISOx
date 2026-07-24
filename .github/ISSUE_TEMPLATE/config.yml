@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Contributing guide
+    url: https://github.com/logjxn/ISOx/blob/main/.github/CONTRIBUTING.md
+    about: How distro support works, and what a PR needs before merging.
