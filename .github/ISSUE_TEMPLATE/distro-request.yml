@@ -1,0 +1,64 @@
+name: Distro request
+description: Request support for a new Linux distribution
+title: "[Distro]: "
+labels: ["distro request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You don't need to know all of this. Fill in what you can and leave the rest.
+
+  - type: input
+    id: distro
+    attributes:
+      label: Distro name
+      placeholder: e.g. Ubuntu
+    validations:
+      required: true
+
+  - type: textarea
+    id: mirrors
+    attributes:
+      label: Mirror URLs
+      description: One per line. HTTPS only. Directory URLs, not direct links to the ISO.
+      placeholder: |
+        https://releases.example.org/latest/
+        https://mirror.example.edu/example/latest/
+    validations:
+      required: true
+
+  - type: input
+    id: checksum_filename
+    attributes:
+      label: Checksum filename
+      description: The file the distro publishes its hashes in.
+      placeholder: e.g. SHA256SUMS
+
+  - type: dropdown
+    id: checksum_format
+    attributes:
+      label: Checksum format
+      options:
+        - "Not sure"
+        - "multi — <hash>  <filename>, one per line"
+        - "bsd — SHA256 (filename) = <hash>"
+        - "single — the file contains only the hash"
+
+  - type: dropdown
+    id: version_directory
+    attributes:
+      label: Does the distro have a permanent "latest" URL?
+      description: If not, ISOx has to auto-discover the current version folder.
+      options:
+        - "Not sure"
+        - "Yes — a stable /latest/ style path exists"
+        - "No — ISOs live in version-numbered folders"
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything unusual?
+      description: >
+        Interactive download pages, checksums that don't match, directory
+        listings behind a 403, no scrapable index, redirects - anything you
+        ran into.
