@@ -57,7 +57,9 @@ def router(checksum_text):
 def setup_repo(
     tmp_path, monkeypatch, config=DISTRO_CONFIG, argv=("isox.py", "testdistro")
 ):
-    (tmp_path / "distros.json").write_text(json.dumps(config))
+    config_path = tmp_path / "distros.json"
+    config_path.write_text(json.dumps(config))
+    monkeypatch.setattr(isox, "DISTROS_PATH", str(config_path))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", list(argv))
 
@@ -119,7 +121,7 @@ def test_unsafe_filename_is_rejected(tmp_path, monkeypatch, capsys):
 
 
 def test_missing_distros_json_exits_1(tmp_path, monkeypatch, capsys):
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(isox, "DISTROS_PATH", str(tmp_path / "distros.json"))
     monkeypatch.setattr(sys, "argv", ["isox.py", "testdistro"])
 
     with pytest.raises(SystemExit) as excinfo:
@@ -130,8 +132,9 @@ def test_missing_distros_json_exits_1(tmp_path, monkeypatch, capsys):
 
 
 def test_malformed_distros_json_exits_1(tmp_path, monkeypatch, capsys):
-    (tmp_path / "distros.json").write_text("{not json")
-    monkeypatch.chdir(tmp_path)
+    config_path = tmp_path / "distros.json"
+    config_path.write_text("{not json")
+    monkeypatch.setattr(isox, "DISTROS_PATH", str(config_path))
     monkeypatch.setattr(sys, "argv", ["isox.py"])
 
     with pytest.raises(SystemExit) as excinfo:

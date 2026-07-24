@@ -8,6 +8,7 @@ import sys
 from bs4 import BeautifulSoup
 
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
+DISTROS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "distros.json")
 
 
 class ISOxError(Exception):
@@ -382,7 +383,7 @@ def find_fastest_mirror_by_throughput(mirror_urls):
 
 def run():
     try:
-        with open("distros.json", "r") as f:
+        with open(DISTROS_PATH, "r") as f:
             distros = json.load(f)
     except FileNotFoundError as e:
         raise ISOxError(
