@@ -5,7 +5,7 @@ useful contributions are the most straightforward.
 
 Let's get the important thing up front: **adding a distro is 99% of the time a config
 change.** Of the eleven distros ISOx supports, only a couple needed code changes, which were 
-Ubuntu and Fedora. Every other one, such as Mint and Garuda was an entry in `distros.json` and 
+Ubuntu and Fedora. Every other one, such as Mint and Garuda, was an entry in `distros.json` and 
 nothing else, thanks to the foundation Fedora built.
 
 ## Adding a distro
@@ -56,7 +56,8 @@ Set `checksum_format` to whichever shape the distro publishes:
 - `single` - the file contains only the hash and nothing else
 
 If the checksum file isn't at a predictable name and has to be scraped, set
-`"checksum_discovery_method": "html_scan"` too.
+`"checksum_discovery_method": "html_scan"` too. Currently this matches files ending in
+CHECKSUM; if your distro's scraped checksum file is named differently, mention it in the PR.
 
 ### A complete example
 
@@ -85,7 +86,7 @@ get it added. :)
 ## Distros that *don't* work
 
 These are just as useful to report, and I'd rather have the writeup than not.
-Several distros have been evaluated and excluded, at least for now,
+Several distros have been evaluated and excluded, at least for now:
 interactive download pages with no scrapable listing, checksums that don't match 
 what's actually published, directory listings behind a 403, no stable index to scrape.
 
