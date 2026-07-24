@@ -47,4 +47,4 @@ jobs:
       - name: Smoke test CLI
         run: python isox.py --list
       - name: Run tests
-        run: pytest
+        run: pytest -v
