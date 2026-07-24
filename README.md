@@ -224,6 +224,12 @@ Everything else (`hashlib`, `json`, `argparse`, `os`, `sys`, `time`) is part of 
     pip install -r requirements.txt -r requirements-dev.txt
     pytest
 
+## Contributing
+
+Distro requests and additions are welcome - most new distros are a
+`distros.json` entry with no Python at all. See
+[CONTRIBUTING.md](.github/CONTRIBUTING.md).
+
 ## License
 
 MIT License: see [LICENSE](LICENSE) for details. Feel free to use, modify, or build on this.
