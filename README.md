@@ -86,7 +86,7 @@ Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at mini
 
 Fedora is shown as a more complex example on purpose. It demonstrates the additional options available when a distro needs version discovery, mirror scanning, or custom checksum handling. Most distributions only require the basic fields plus one or two optional ones.
 
-If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro’s official mirror list and replace the URL in distros.json. The  tool will then handle the rest.
+If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro’s official mirror list and replace the URL in distros.json. The tool will then handle the rest.
 
 ```json
 {
@@ -124,7 +124,7 @@ Not every distro publishes ISOs the same way, so the tool picks a strategy per d
 
 **Version-folder auto-discovery** (`"version_directory": true`) is a separate, earlier step for distros with no stable "latest" URL alias at all. Before any ISO discovery happens, the parent directory is scraped, version-numbered folder names are parsed and sorted *numerically*, and the newest one is spliced into every `{version}` placeholder across the mirror URLs.
 
-For Ubuntu, `version_scheme` is optional and only applies alongside version_directory. Left out, the newest version-numbered folder is selected. Set to "ubuntu_lts", only even-year .04 folders match, so `python isox ubuntu` resolves to the latest LTS. Interim releases are skipped intentionally, since LTS is the better default for a daily driver.
+For Ubuntu, `version_scheme` is optional and only applies alongside version_directory. Left out, the newest version-numbered folder is selected. Set to "ubuntu_lts", only even-year .04 folders match, so `python isox.py ubuntu` resolves to the latest LTS. Interim releases are skipped intentionally, since LTS is the better default for a daily driver.
 
 ### Checksum parsing
 
@@ -215,13 +215,13 @@ If your threat model requires verifying the origin of releases, consult the dist
 
 Install both with:
 
-    pip install -r requirements.txt
+    pip install -r requirements.txt 
 
 Everything else (`hashlib`, `json`, `argparse`, `os`, `sys`, `time`) is part of the Python standard library.
 
 ## Development
 
-    pip install -r requirements-dev.txt
+    pip install -r requirements.txt -r requirements-dev.txt
     pytest
 
 ## License
