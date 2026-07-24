@@ -5,6 +5,7 @@
 ![Release](https://img.shields.io/github/v/release/logjxn/ISOx)
 ![OS](https://img.shields.io/badge/platform-Linux-orange)
 ![Status](https://img.shields.io/badge/status-active-success)
+![CI](https://github.com/logjxn/ISOx/actions/workflows/ci.yml/badge.svg)
 
 A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest available source, and cryptographically verifies file integrity against source checksums, so you never have to manually hunt down hashes or skip verification because it's tedious.
 
@@ -36,13 +37,13 @@ python isox.py opensuse
 python isox.py gentoo
 python isox.py void
 python isox.py garuda
-python isox.py ubuntu 
+python isox.py ubuntu
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
 
 **A Normal Run**
-``` 
+```
 https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 3.33 MB/s
 https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 1.98 MB/s
 https://mirror.rackspace.com/archlinux/iso/latest/archlinux-x86_64.iso sampled at 0.08 MB/s
@@ -51,7 +52,7 @@ Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/lat
 Checksum matches, file is good.
 ```
 **Resumed Output**
-``` 
+```
 https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 3.28 MB/s
 https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 2.04 MB/s
 https://mirror.rackspace.com/archlinux/iso/latest/archlinux-x86_64.iso is unreachable
@@ -121,7 +122,7 @@ Not every distro publishes ISOs the same way, so the tool picks a strategy per d
 - **`"iso_filename_contains"` + default discovery** - scans a shared checksum file for a filename matching all the given substrings, since versioned filenames would be inefficient to hardcode.
 - **`"iso_filename_contains"` + `"discovery_method": "html_scan"`** - for distros with no single shared checksum file to scan. Scrapes the actual directory listing HTML with BeautifulSoup and filters `<a href>` links ending in `.iso` that match all the necessary substrings.
 
-**Version-folder auto-discovery** (`"version_directory": true`) is a separate, earlier step for distros with no stable "latest" URL alias at all. Before any ISO discovery happens, the parent directory is scraped, version-numbered folder names are parsed and sorted *numerically*, and the newest one is spliced into every `{version}` placeholder across the mirror URLs. 
+**Version-folder auto-discovery** (`"version_directory": true`) is a separate, earlier step for distros with no stable "latest" URL alias at all. Before any ISO discovery happens, the parent directory is scraped, version-numbered folder names are parsed and sorted *numerically*, and the newest one is spliced into every `{version}` placeholder across the mirror URLs.
 
 For Ubuntu, `version_scheme` is optional and only applies alongside version_directory. Left out, the newest version-numbered folder is selected. Set to "ubuntu_lts", only even-year .04 folders match, so `python isox ubuntu` resolves to the latest LTS. Interim releases are skipped intentionally, since LTS is the better default for a daily driver.
 
@@ -138,7 +139,7 @@ Each candidate mirror is sampled with a ranged GET request, pulling the first ~2
 Mirrors that time out or return an error status are caught (`requests.exceptions.RequestException`) and skipped rather than crashing the whole run.
 
 **All Mirrors Down**
-``` 
+```
 https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso is unreachable
 https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso is unreachable
 https://mirror.rackspace.com/archlinux/iso/latest/archlinux-x86_64.iso is unreachable
@@ -157,7 +158,7 @@ Three things can go wrong with a resume, and each is handled:
 - **The server ignores the `Range` header** and sends the whole file with a `200`. The offset is reset and the file is rewritten from scratch rather than appended to.
 
 **Stale Partial Downloads**
-``` 
+```
 Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/latest ...
 Partial download doesn't match file on server. Starting fresh.
 [##############################] 100.0%    3.39 MB/s
@@ -173,7 +174,7 @@ The distro's checksum file is fetched new on every run and parsed into a `{filen
 If the hashes don't match, the ISO is renamed to `<filename>.FAILED`. If no checksum entry could be found for the file at all, it's renamed to `<filename>.UNVERIFIED`. In both cases the process exits non-zero.
 
 **Verification Failure**
-``` 
+```
 [##############################] 100.0%    3.12 MB/s
 WARNING: checksum mismatch, file may be corrupted or tampered with!
 Renamed to ISOx_Downloads/archlinux-x86_64.iso.FAILED so it can't be mistaken for a verified ISO.
@@ -200,7 +201,7 @@ print("Verified:", result)  # should print False now, after corruption
 
 ISOx does **not** perform GPG signature verification. Many Linux distributions publish GPG signatures alongside their release files or checksum files. These provide an additional layer of authenticity by allowing you to verify that the checksum has been signed by the distribution's key.
 
-ISOx verifies that the downloaded ISO matches the checksum it retrieves, but it does not verify the authenticity of that checksum with GPG. For most users, this still protects against download or file corruption. 
+ISOx verifies that the downloaded ISO matches the checksum it retrieves, but it does not verify the authenticity of that checksum with GPG. For most users, this still protects against download or file corruption.
 
 GPG is not included as it would require maintaining trusted public keys (or fingerprints) for every supported distribution, along with key management and signature validation logic. That complexity conflicts with ISOx's goal of being a lightweight, easy to use, and config-driven Linux tool.
 
@@ -209,10 +210,19 @@ If your threat model requires verifying the origin of releases, consult the dist
 ## Requirements
 
 - Python 3.x
-- `requests` (`pip install requests`)
-- `beautifulsoup4` (`pip install beautifulsoup4`) - used for HTML directory-listing discovery
+- `requests`
+- `beautifulsoup4` - used for HTML directory-listing discovery
+
+Install both with:
+
+    pip install -r requirements.txt
 
 Everything else (`hashlib`, `json`, `argparse`, `os`, `sys`, `time`) is part of the Python standard library.
+
+## Development
+
+    pip install -r requirements-dev.txt
+    pytest
 
 ## License
 

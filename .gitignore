@@ -10,6 +10,8 @@ __pycache__/
 ISOx_Downloads/
 *.part
 *.part.meta
+*.FAILED
+*.UNVERIFIED
 
 # Distribution / packaging
 .Python
