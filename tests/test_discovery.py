@@ -45,12 +45,27 @@ def test_html_listing_requires_every_substring(monkeypatch):
     assert result == "debian-13.0.0-amd64-netinst.iso"
 
 
-def test_html_listing_sorts_lexicographically_not_numerically(monkeypatch):
+def test_html_listing_sorts_numerically(monkeypatch):
     serve_html(
         monkeypatch, listing("void-live-x86_64-9.iso", "void-live-x86_64-10.iso")
     )
     result = isox.discover_via_html_listing("https://example.test/", ["void"])
-    assert result == "void-live-x86_64-9.iso"
+    assert result == "void-live-x86_64-10.iso"
+
+
+def test_html_listing_mixed_digit_and_text_names_dont_crash(monkeypatch):
+    serve_html(monkeypatch, listing("foo-10.iso", "foo-beta.iso"))
+    result = isox.discover_via_html_listing("https://example.test/", ["foo"])
+    assert result == "foo-beta.iso"
+
+
+def test_html_listing_sorts_date_stamped_names(monkeypatch):
+    serve_html(
+        monkeypatch,
+        listing("void-live-x86_64-20251231.iso", "void-live-x86_64-20260101.iso"),
+    )
+    result = isox.discover_via_html_listing("https://example.test/", ["void"])
+    assert result == "void-live-x86_64-20260101.iso"
 
 
 def test_html_listing_raises_when_nothing_matches(monkeypatch):
