@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+import re
 from bs4 import BeautifulSoup
 
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
@@ -246,6 +247,15 @@ def download_file(url, destination_path):
     discard_part(part_path, meta_path)
 
 
+def natural_sort_key(name):
+    # "foo-10.iso" -> ["foo-", 10, ".iso"], so 10 outranks 9 instead of losing
+    # to it lexicographically. re.split with a capturing group alternates
+    # text/digits, so two keys never compare int against str at the same index.
+    return [
+        int(part) if part.isdecimal() else part for part in re.split(r"(\d+)", name)
+    ]
+
+
 def discover_via_html_listing(directory_url, required_substrings, must_end_with=".iso"):
     response = requests.get(directory_url, timeout=10)
     response.raise_for_status()
@@ -263,7 +273,7 @@ def discover_via_html_listing(directory_url, required_substrings, must_end_with=
         raise ValueError(
             f"No matching filename found in directory listing (looking for {must_end_with})"
         )
-    return sorted(matches)[-1]
+    return max(matches, key=natural_sort_key)
 
 
 def find_latest_version_folder(directory_url, min_parts=1):
@@ -342,6 +352,13 @@ def verify_checksum(filepath, filename, hash_lookup, algo):
     expected_hash = hash_lookup[filename]
     actual_hash = compute_hash(filepath, algo)
     return actual_hash == expected_hash
+
+
+def quarantine_download(destination_path, suffix):
+    """Rename a file that failed verification so it can't pass for a good ISO."""
+    quarantine_path = destination_path + suffix
+    os.replace(destination_path, quarantine_path)
+    return quarantine_path
 
 
 def check_mirror_throughput(url, sample_bytes=2_000_000):
@@ -481,13 +498,11 @@ def run():
         if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
             print("Checksum matches, file is good.")
             return
-        quarantine = destination_path + ".FAILED"
-        os.replace(destination_path, quarantine)
+        quarantine = quarantine_download(destination_path, ".FAILED")
         print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
         print(f"Renamed to {quarantine} so it can't be mistaken for a verified ISO.")
     except ValueError as e:
-        quarantine = destination_path + ".UNVERIFIED"
-        os.replace(destination_path, quarantine)
+        quarantine = quarantine_download(destination_path, ".UNVERIFIED")
         print(
             f"Error: could not verify checksum ({e}). The ISO downloaded but was NOT verified."
         )
