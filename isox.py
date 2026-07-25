@@ -354,6 +354,13 @@ def verify_checksum(filepath, filename, hash_lookup, algo):
     return actual_hash == expected_hash
 
 
+def quarantine_download(destination_path, suffix):
+    """Rename a file that failed verification so it can't pass for a good ISO."""
+    quarantine_path = destination_path + suffix
+    os.replace(destination_path, quarantine_path)
+    return quarantine_path
+
+
 def check_mirror_throughput(url, sample_bytes=2_000_000):
     try:
         headers = {"Range": f"bytes=0-{sample_bytes - 1}"}
@@ -491,13 +498,11 @@ def run():
         if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
             print("Checksum matches, file is good.")
             return
-        quarantine = destination_path + ".FAILED"
-        os.replace(destination_path, quarantine)
+        quarantine = quarantine_download(destination_path, ".FAILED")
         print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
         print(f"Renamed to {quarantine} so it can't be mistaken for a verified ISO.")
     except ValueError as e:
-        quarantine = destination_path + ".UNVERIFIED"
-        os.replace(destination_path, quarantine)
+        quarantine = quarantine_download(destination_path, ".UNVERIFIED")
         print(
             f"Error: could not verify checksum ({e}). The ISO downloaded but was NOT verified."
         )
