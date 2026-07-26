@@ -38,6 +38,7 @@ python isox.py gentoo
 python isox.py void
 python isox.py garuda
 python isox.py ubuntu
+python isox.py rocky
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:

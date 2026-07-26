@@ -123,5 +123,19 @@
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["desktop", "amd64"]
+    },
+    "rocky": {
+        "mirrors": [
+            "https://download.rockylinux.org/pub/rocky/{version}/isos/x86_64/",
+            "https://mirror.cpsc.ucalgary.ca/mirror/rocky-linux/{version}/isos/x86_64/",
+            "https://mirror.cs.vt.edu/pub/rocky/{version}/isos/x86_64/"
+        ],
+        "version_directory": true,
+        "version_discovery_url": "https://download.rockylinux.org/pub/rocky/",
+        "checksum_filename": "CHECKSUM",
+        "checksum_format": "bsd",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["x86_64", "minimal"]
     }
 }

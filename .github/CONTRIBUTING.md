@@ -4,7 +4,7 @@ Thanks for taking a look. ISOx has a deliberately small surface, and the most
 useful contributions are the most straightforward.
 
 Let's get the important thing up front: **adding a distro is 99% of the time a config
-change.** Of the eleven distros ISOx supports, only a couple needed code changes, which were
+change.** Of the distros ISOx supports, only a couple needed code changes, which were
 Ubuntu and Fedora. Every other one, such as Mint and Garuda, was an entry in `distros.json` and
 nothing else, thanks to the foundation Fedora built.
 
