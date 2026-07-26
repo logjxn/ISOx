@@ -99,29 +99,31 @@ def resolve_iso_filename(name, distro_info, mirrors, checksum_filename):
         return distro_info["iso_filename"]
 
     required_substrings = distro_info["iso_filename_contains"]
+    use_html_scan = distro_info.get("discovery_method", "checksum_scan") == "html_scan"
 
-    if distro_info.get("discovery_method", "checksum_scan") == "html_scan":
+    # We don't want one dead mirror to kill discovery if the other mirrors are good.
+    # Unreachable and no-match are treated the same, so we try mirrors in order until one works.
+    for mirror in mirrors:
         try:
-            return discover_via_html_listing(mirrors[0], required_substrings)
-        except ValueError as e:
-            raise ISOxError(
-                f"couldn't find a matching ISO filename for '{name}' in the directory listing."
-            ) from e
+            if use_html_scan:
+                return discover_via_html_listing(mirror, required_substrings)
+            peek_url = mirror.rstrip("/") + "/" + checksum_filename
+            response = requests.get(peek_url, timeout=10)
+            response.raise_for_status()
+            peek_lookup = parse_checksum_file(
+                response.text, "multi", distro_info["hash_algo"], None
+            )
+            for f in peek_lookup:
+                if all(sub in f for sub in required_substrings):
+                    return f
+        except (requests.exceptions.RequestException, ValueError):
+            pass
+        print(f"Couldn't discover an ISO filename via {mirror}")
 
-    peek_url = mirrors[0].rstrip("/") + "/" + checksum_filename
-    response = requests.get(peek_url, timeout=10)
-    response.raise_for_status()
-    peek_lookup = parse_checksum_file(
-        response.text, "multi", distro_info["hash_algo"], None
+    raise ISOxError(
+        f"couldn't discover an ISO filename for '{name}' from any of its "
+        f"{len(mirrors)} mirrors."
     )
-    try:
-        return next(
-            f for f in peek_lookup if all(sub in f for sub in required_substrings)
-        )
-    except StopIteration as e:
-        raise ISOxError(
-            f"couldn't find a matching ISO filename for '{name}' in the checksum file at {peek_url}."
-        ) from e
 
 
 def resolve_checksum_filename(name, distro_info, base, checksum_filename, iso_filename):
