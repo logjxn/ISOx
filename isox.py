@@ -8,6 +8,7 @@ import sys
 import re
 from bs4 import BeautifulSoup
 
+__version__ = "2.5.0"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DISTROS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "distros.json")
 
@@ -431,6 +432,7 @@ def run():
     parser.add_argument(
         "--list", action="store_true", help="List available distros and exit"
     )
+    parser.add_argument("--version", action="version", version=f"ISOx {__version__}")
     args = parser.parse_args()
 
     if args.list:
