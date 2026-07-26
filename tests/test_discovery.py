@@ -2,6 +2,8 @@ import types
 
 import pytest
 
+import requests
+
 import isox
 
 
@@ -140,3 +142,83 @@ def test_lts_finder_rejects_point_releases(monkeypatch):
     serve_html(monkeypatch, listing("24.04.2/"))
     with pytest.raises(ValueError, match="No LTS-style"):
         isox.find_latest_lts_folder("https://example.test/")
+
+
+HTML_DISCOVERY_CONFIG = {
+    "iso_filename_contains": ["archlinux"],
+    "discovery_method": "html_scan",
+    "hash_algo": "sha256",
+}
+
+PEEK_DISCOVERY_CONFIG = {
+    "iso_filename_contains": ["archlinux"],
+    "hash_algo": "sha256",
+}
+
+
+def test_resolve_iso_filename_skips_dead_mirror(monkeypatch):
+    def fake_get(url, **kwargs):
+        if url.startswith("https://down.test/"):
+            raise requests.exceptions.ConnectionError("down")
+        return types.SimpleNamespace(
+            text=listing("archlinux-x86_64.iso"), raise_for_status=lambda: None
+        )
+
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+    result = isox.resolve_iso_filename(
+        "arch",
+        HTML_DISCOVERY_CONFIG,
+        ["https://down.test/", "https://up.test/"],
+        "sha256sums.txt",
+    )
+    assert result == "archlinux-x86_64.iso"
+
+
+def test_resolve_iso_filename_skips_mirror_without_a_match(monkeypatch):
+    def fake_get(url, **kwargs):
+        if url.startswith("https://stale.test/"):
+            html = listing("readme.txt")
+        else:
+            html = listing("archlinux-x86_64.iso")
+        return types.SimpleNamespace(text=html, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+    result = isox.resolve_iso_filename(
+        "arch",
+        HTML_DISCOVERY_CONFIG,
+        ["https://stale.test/", "https://fresh.test/"],
+        "sha256sums.txt",
+    )
+    assert result == "archlinux-x86_64.iso"
+
+
+def test_resolve_iso_filename_checksum_peek_skips_dead_mirror(monkeypatch):
+    def fake_get(url, **kwargs):
+        if url.startswith("https://down.test/"):
+            raise requests.exceptions.ConnectionError("down")
+        return types.SimpleNamespace(
+            text="abc123 archlinux-x86_64.iso\n", raise_for_status=lambda: None
+        )
+
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+    result = isox.resolve_iso_filename(
+        "arch",
+        PEEK_DISCOVERY_CONFIG,
+        ["https://down.test/", "https://up.test/"],
+        "sha256sums.txt",
+    )
+    assert result == "archlinux-x86_64.iso"
+
+
+def test_resolve_iso_filename_raises_when_every_mirror_fails(monkeypatch):
+    def fake_get(url, **kwargs):
+        raise requests.exceptions.ConnectionError("down")
+
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+    with pytest.raises(isox.ISOxError, match="any of its"):
+        isox.resolve_iso_filename(
+            "arch",
+            HTML_DISCOVERY_CONFIG,
+            ["https://a.test/", "https://b.test/"],
+            "sha256sums.txt",
+        )

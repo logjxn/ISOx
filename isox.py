@@ -8,6 +8,7 @@ import sys
 import re
 from bs4 import BeautifulSoup
 
+__version__ = "2.5.0"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DISTROS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "distros.json")
 
@@ -88,6 +89,14 @@ def validate_distro_config(name, distro_info):
         )
     if "iso_filename" not in distro_info and "iso_filename_contains" not in distro_info:
         raise ISOxError(f"'{name}' needs either iso_filename or iso_filename_contains.")
+    # The checksum is the only trust anchor (no GPG), so a plain-HTTP URL
+    # anywhere in the chain would let a MITM serve a matched ISO + hash.
+    urls_needing_https = list(distro_info["mirrors"])
+    if "version_discovery_url" in distro_info:
+        urls_needing_https.append(distro_info["version_discovery_url"])
+    for url in urls_needing_https:
+        if not url.startswith("https://"):
+            raise ISOxError(f"'{name}' contains a non-HTTPS URL: {url}")
 
 
 def resolve_iso_filename(name, distro_info, mirrors, checksum_filename):
@@ -99,29 +108,31 @@ def resolve_iso_filename(name, distro_info, mirrors, checksum_filename):
         return distro_info["iso_filename"]
 
     required_substrings = distro_info["iso_filename_contains"]
+    use_html_scan = distro_info.get("discovery_method", "checksum_scan") == "html_scan"
 
-    if distro_info.get("discovery_method", "checksum_scan") == "html_scan":
+    # We don't want one dead mirror to kill discovery if the other mirrors are good.
+    # Unreachable and no-match are treated the same, so we try mirrors in order until one works.
+    for mirror in mirrors:
         try:
-            return discover_via_html_listing(mirrors[0], required_substrings)
-        except ValueError as e:
-            raise ISOxError(
-                f"couldn't find a matching ISO filename for '{name}' in the directory listing."
-            ) from e
+            if use_html_scan:
+                return discover_via_html_listing(mirror, required_substrings)
+            peek_url = mirror.rstrip("/") + "/" + checksum_filename
+            response = requests.get(peek_url, timeout=10)
+            response.raise_for_status()
+            peek_lookup = parse_checksum_file(
+                response.text, "multi", distro_info["hash_algo"], None
+            )
+            for f in peek_lookup:
+                if all(sub in f for sub in required_substrings):
+                    return f
+        except (requests.exceptions.RequestException, ValueError):
+            pass
+        print(f"Couldn't discover an ISO filename via {mirror}")
 
-    peek_url = mirrors[0].rstrip("/") + "/" + checksum_filename
-    response = requests.get(peek_url, timeout=10)
-    response.raise_for_status()
-    peek_lookup = parse_checksum_file(
-        response.text, "multi", distro_info["hash_algo"], None
+    raise ISOxError(
+        f"couldn't discover an ISO filename for '{name}' from any of its "
+        f"{len(mirrors)} mirrors."
     )
-    try:
-        return next(
-            f for f in peek_lookup if all(sub in f for sub in required_substrings)
-        )
-    except StopIteration as e:
-        raise ISOxError(
-            f"couldn't find a matching ISO filename for '{name}' in the checksum file at {peek_url}."
-        ) from e
 
 
 def resolve_checksum_filename(name, distro_info, base, checksum_filename, iso_filename):
@@ -421,6 +432,7 @@ def run():
     parser.add_argument(
         "--list", action="store_true", help="List available distros and exit"
     )
+    parser.add_argument("--version", action="version", version=f"ISOx {__version__}")
     args = parser.parse_args()
 
     if args.list:

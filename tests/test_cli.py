@@ -203,3 +203,13 @@ def test_ubuntu_config_resolves_to_lts_not_interim(tmp_path, monkeypatch, capsys
     isox.run()
 
     assert "Discovered latest version: 26.04" in capsys.readouterr().out
+
+
+def test_version_flag_prints_version_and_exits_0(tmp_path, monkeypatch, capsys):
+    setup_repo(tmp_path, monkeypatch, argv=("isox.py", "--version"))
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.run()
+
+    assert excinfo.value.code == 0
+    assert isox.__version__ in capsys.readouterr().out
