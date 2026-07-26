@@ -4,8 +4,8 @@ Thanks for taking a look. ISOx has a deliberately small surface, and the most
 useful contributions are the most straightforward.
 
 Let's get the important thing up front: **adding a distro is 99% of the time a config
-change.** Of the eleven distros ISOx supports, only a couple needed code changes, which were 
-Ubuntu and Fedora. Every other one, such as Mint and Garuda, was an entry in `distros.json` and 
+change.** Of the eleven distros ISOx supports, only a couple needed code changes, which were
+Ubuntu and Fedora. Every other one, such as Mint and Garuda, was an entry in `distros.json` and
 nothing else, thanks to the foundation Fedora built.
 
 ## Adding a distro
@@ -13,7 +13,7 @@ nothing else, thanks to the foundation Fedora built.
 Every entry needs three fields:
 
 - `mirrors` - a list of directory URLs (not direct links to the ISO). **HTTPS
-  only.** Two or three is a good number; ISOx samples each one and downloads
+  only, enforced by validation.** Two or three is a good number; ISOx samples each one and downloads
   from whichever is fastest, so a slow mirror in the list costs nothing. Some distros
   have only one based on vendor suggestion. (openSUSE)
 - `checksum_filename` - the name of the file the distro publishes its hashes
@@ -87,7 +87,7 @@ get it added. :)
 
 These are just as useful to report, and I'd rather have the writeup than not.
 Several distros have been evaluated and excluded, at least for now:
-interactive download pages with no scrapable listing, checksums that don't match 
+interactive download pages with no scrapable listing, checksums that don't match
 what's actually published, directory listings behind a 403, no stable index to scrape.
 
 If you dig into one and hit a wall, open an issue describing what you found.

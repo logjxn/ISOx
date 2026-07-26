@@ -126,6 +126,18 @@ VALID_CONFIG = {
             },
             "iso_filename or iso_filename_contains",
         ),
+        (
+            dict(VALID_CONFIG, mirrors=["http://example.test/iso/"]),
+            "non-HTTPS",
+        ),
+        (
+            dict(
+                VALID_CONFIG,
+                version_directory=True,
+                version_discovery_url="http://example.test/",
+            ),
+            "non-HTTPS",
+        ),
     ],
 )
 def test_rejects_invalid_config(config, message):

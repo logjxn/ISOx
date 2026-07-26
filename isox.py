@@ -88,6 +88,14 @@ def validate_distro_config(name, distro_info):
         )
     if "iso_filename" not in distro_info and "iso_filename_contains" not in distro_info:
         raise ISOxError(f"'{name}' needs either iso_filename or iso_filename_contains.")
+    # The checksum is the only trust anchor (no GPG), so a plain-HTTP URL
+    # anywhere in the chain would let a MITM serve a matched ISO + hash.
+    urls_needing_https = list(distro_info["mirrors"])
+    if "version_discovery_url" in distro_info:
+        urls_needing_https.append(distro_info["version_discovery_url"])
+    for url in urls_needing_https:
+        if not url.startswith("https://"):
+            raise ISOxError(f"'{name}' contains a non-HTTPS URL: {url}")
 
 
 def resolve_iso_filename(name, distro_info, mirrors, checksum_filename):

@@ -86,7 +86,7 @@ Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at mini
 
 Fedora is shown as a more complex example on purpose. It demonstrates the additional options available when a distro needs version discovery, mirror scanning, or custom checksum handling. Most distributions only require the basic fields plus one or two optional ones.
 
-If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro’s official mirror list and replace the URL in distros.json. The tool will then handle the rest.
+If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro's official mirror list and replace the URL in distros.json. The tool will then handle the rest. Mirror and version-discovery URLs must be HTTPS. ISOx refuses a config with a plain-HTTP URL, but most distros have moved to HTTPS-only mirrors already, so this shouldn't narrow your options much.
 
 ```json
 {
@@ -215,7 +215,7 @@ If your threat model requires verifying the origin of releases, consult the dist
 
 Install both with:
 
-    pip install -r requirements.txt 
+    pip install -r requirements.txt
 
 Everything else (`hashlib`, `json`, `argparse`, `os`, `sys`, `time`) is part of the Python standard library.
 
