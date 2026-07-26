@@ -158,7 +158,7 @@ PEEK_DISCOVERY_CONFIG = {
 
 def test_resolve_iso_filename_skips_dead_mirror(monkeypatch):
     def fake_get(url, **kwargs):
-        if url.startswith("https://down.test"):
+        if url.startswith("https://down.test/"):
             raise requests.exceptions.ConnectionError("down")
         return types.SimpleNamespace(
             text=listing("archlinux-x86_64.iso"), raise_for_status=lambda: None
@@ -176,7 +176,7 @@ def test_resolve_iso_filename_skips_dead_mirror(monkeypatch):
 
 def test_resolve_iso_filename_skips_mirror_without_a_match(monkeypatch):
     def fake_get(url, **kwargs):
-        if url.startswith("https://stale.test"):
+        if url.startswith("https://stale.test/"):
             html = listing("readme.txt")
         else:
             html = listing("archlinux-x86_64.iso")
@@ -194,7 +194,7 @@ def test_resolve_iso_filename_skips_mirror_without_a_match(monkeypatch):
 
 def test_resolve_iso_filename_checksum_peek_skips_dead_mirror(monkeypatch):
     def fake_get(url, **kwargs):
-        if url.startswith("https://down.test"):
+        if url.startswith("https://down.test/"):
             raise requests.exceptions.ConnectionError("down")
         return types.SimpleNamespace(
             text="abc123 archlinux-x86_64.iso\n", raise_for_status=lambda: None
