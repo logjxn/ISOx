@@ -1,7 +1,9 @@
 import hashlib
 import json
 import os
+import site
 import sys
+import sysconfig
 
 import pytest
 import requests
@@ -235,11 +237,32 @@ def test_user_config_outranks_the_bundled_copy(tmp_path, monkeypatch):
     monkeypatch.delenv("ISOX_DISTROS", raising=False)
     candidates = isox.distros_path_candidates()
 
-    assert candidates == [
-        os.path.join(isox.user_config_dir(), "distros.json"),
-        os.path.join(os.path.dirname(os.path.abspath(isox.__file__)), "distros.json"),
-        os.path.join(sys.prefix, "share", "isox", "distros.json"),
-    ]
+    assert candidates[0] == os.path.join(isox.user_config_dir(), "distros.json")
+    assert candidates[1] == os.path.join(
+        os.path.dirname(os.path.abspath(isox.__file__)), "distros.json"
+    )
+
+
+def test_every_install_scheme_data_dir_is_searched(monkeypatch):
+    """A wheel's data files land wherever the install scheme puts them.
+
+    Checking only sys.prefix means `pip install --user` and Debian's /usr/local
+    default can't find distros.json at all, and the tool doesn't start.
+    """
+    monkeypatch.delenv("ISOX_DISTROS", raising=False)
+    candidates = isox.distros_path_candidates()
+
+    for base in (sysconfig.get_path("data"), site.getuserbase(), sys.prefix):
+        expected = os.path.join(base, "share", "isox", "distros.json")
+        assert expected in candidates, f"{base} not searched"
+
+
+def test_candidates_are_deduplicated(monkeypatch):
+    # sys.prefix and the data scheme are the same path on a normal install, and
+    # a "Looked in:" list that repeats itself reads like a bug.
+    monkeypatch.delenv("ISOX_DISTROS", raising=False)
+    candidates = isox.distros_path_candidates()
+    assert len(candidates) == len(set(candidates))
 
 
 def test_resolve_picks_the_first_file_that_exists(tmp_path, monkeypatch):

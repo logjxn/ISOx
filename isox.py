@@ -5,7 +5,9 @@ import time
 import argparse
 import json
 import os
+import site
 import sys
+import sysconfig
 import re
 from bs4 import BeautifulSoup
 
@@ -30,21 +32,35 @@ def distros_path_candidates():
 
     ISOX_DISTROS short-circuits the search so a typo'd path is reported rather
     than silently falling back to the bundled config.
+
+    The install locations are plural because a wheel's data files land wherever
+    the *install scheme* puts them, and the scheme varies by how pip was invoked.
+    A venv or pipx install has sys.prefix and the data path coincide, but
+    `pip install --user` puts them under the user base, and Debian's patched
+    system Python defaults to /usr/local while sys.prefix stays /usr. Checking
+    only sys.prefix means the tool cannot find its own config on either.
     """
     override = os.environ.get("ISOX_DISTROS")
     if override:
         return [override]
-    return [
+    candidates = [
         # A user's own copy wins, and unlike the bundled one it survives an
         # upgrade: pip replaces what it installed, so a customised mirror list
         # kept only there would silently revert on `pip install -U isox`.
         os.path.join(user_config_dir(), "distros.json"),
         # Beside the script: a git clone.
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "distros.json"),
-        # Under the prefix: a wheel install, where a single-module distribution
-        # has nowhere else to put a data file.
+        # The install scheme's own data directory: correct for Debian's
+        # /usr/local default, and for anything else that relocates data.
+        os.path.join(sysconfig.get_path("data"), "share", "isox", "distros.json"),
+        # pip install --user.
+        os.path.join(site.getuserbase(), "share", "isox", "distros.json"),
+        # venv and pipx, where prefix and data coincide.
         os.path.join(sys.prefix, "share", "isox", "distros.json"),
     ]
+    # These collapse to the same path on a normal install, and a "Looked in:"
+    # list that repeats itself reads like a bug.
+    return list(dict.fromkeys(candidates))
 
 
 def resolve_distros_path():

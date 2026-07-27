@@ -68,3 +68,12 @@ jobs:
           python -m venv /tmp/venv
           /tmp/venv/bin/pip install dist/*.whl
           cd /tmp && /tmp/venv/bin/isox --list
+
+      # A wheel's data files land wherever the install *scheme* puts them, which
+      # is not sys.prefix for --user. Looking only there made `pip install --user`
+      # produce a tool that couldn't find its own config and refused to start.
+      - name: Install with --user and run it from outside the repo
+        run: |
+          export PYTHONUSERBASE=/tmp/userbase
+          python -m pip install --user --no-warn-script-location dist/*.whl
+          cd /tmp && "$PYTHONUSERBASE/bin/isox" --list

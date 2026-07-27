@@ -156,7 +156,13 @@ Searched in this order, first hit wins:
 1. `$ISOX_DISTROS`, if set - this short-circuits the rest, so a typo is reported rather than silently falling back
 2. `~/.config/isox/distros.json` (`%APPDATA%\isox\distros.json` on Windows)
 3. Beside `isox.py` - the git clone case
-4. `<prefix>/share/isox/distros.json` - the pip install case
+4. `share/isox/distros.json` under the install scheme's data directory, the user base, or `sys.prefix`
+
+Four locations for the install case rather than one because a wheel's data files land
+wherever the *install scheme* puts them, and that varies by how pip was invoked. venv and
+pipx have `sys.prefix` and the data path coincide; `pip install --user` puts it under the
+user base; Debian's patched system Python defaults to `/usr/local` while `sys.prefix` stays
+`/usr`. Duplicates collapse, so a normal install shows one path, not three.
 
 **If you customise mirrors on a pip install, put your copy at (2).** `pip install -U isox`
 replaces what it installed, so edits made directly to (4) revert on upgrade without
