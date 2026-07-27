@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import sys
 
 import pytest
@@ -37,6 +38,13 @@ class FakeResponse:
 
     def close(self):
         pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+        return False
 
 
 def router(checksum_text):
@@ -213,3 +221,156 @@ def test_version_flag_prints_version_and_exits_0(tmp_path, monkeypatch, capsys):
 
     assert excinfo.value.code == 0
     assert isox.__version__ in capsys.readouterr().out
+
+
+def test_env_override_short_circuits_the_search(tmp_path, monkeypatch):
+    monkeypatch.setenv("ISOX_DISTROS", str(tmp_path / "mine.json"))
+    assert isox.distros_path_candidates() == [str(tmp_path / "mine.json")]
+
+
+def test_user_config_outranks_the_bundled_copy(tmp_path, monkeypatch):
+    # The reason this ordering exists: pip replaces what it installed, so a
+    # customised mirror list kept only in the bundled copy silently reverts on
+    # `pip install -U isox`. A user's own file has to win.
+    monkeypatch.delenv("ISOX_DISTROS", raising=False)
+    candidates = isox.distros_path_candidates()
+
+    assert candidates == [
+        os.path.join(isox.user_config_dir(), "distros.json"),
+        os.path.join(os.path.dirname(os.path.abspath(isox.__file__)), "distros.json"),
+        os.path.join(sys.prefix, "share", "isox", "distros.json"),
+    ]
+
+
+def test_resolve_picks_the_first_file_that_exists(tmp_path, monkeypatch):
+    missing = tmp_path / "nope" / "distros.json"
+    present = tmp_path / "yes" / "distros.json"
+    present.parent.mkdir(parents=True)
+    present.write_text("{}")
+
+    monkeypatch.setattr(
+        isox, "distros_path_candidates", lambda: [str(missing), str(present)]
+    )
+    assert isox.resolve_distros_path() == str(present)
+
+
+def test_resolve_falls_back_to_the_last_candidate_when_nothing_exists(
+    tmp_path, monkeypatch
+):
+    a = str(tmp_path / "a.json")
+    b = str(tmp_path / "b.json")
+    monkeypatch.setattr(isox, "distros_path_candidates", lambda: [a, b])
+    # Reported so the "not found" error names a real location rather than nothing.
+    assert isox.resolve_distros_path() == b
+
+
+@pytest.mark.parametrize(
+    "platform, env, expected_parent",
+    [
+        (
+            "nt",
+            {"APPDATA": os.path.join("C:", "Users", "x", "AppData", "Roaming")},
+            os.path.join("C:", "Users", "x", "AppData", "Roaming"),
+        ),
+        (
+            "posix",
+            {"XDG_CONFIG_HOME": os.path.join("/home", "x", ".config")},
+            os.path.join("/home", "x", ".config"),
+        ),
+    ],
+)
+def test_user_config_dir_follows_platform_convention(
+    monkeypatch, platform, env, expected_parent
+):
+    monkeypatch.setattr(os, "name", platform)
+    for key in ("APPDATA", "XDG_CONFIG_HOME"):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    assert isox.user_config_dir() == os.path.join(expected_parent, "isox")
+
+
+def test_missing_distros_json_error_lists_where_it_looked(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(isox, "DISTROS_PATH", str(tmp_path / "distros.json"))
+    monkeypatch.setattr(
+        isox,
+        "distros_path_candidates",
+        lambda: ["/one/distros.json", "/two/distros.json"],
+    )
+    monkeypatch.setattr(sys, "argv", ["isox.py", "testdistro"])
+
+    with pytest.raises(SystemExit):
+        isox.main()
+
+    out = capsys.readouterr().out
+    assert "/one/distros.json" in out
+    assert "/two/distros.json" in out
+    assert "ISOX_DISTROS" in out
+
+
+def test_output_dir_flag_redirects_the_download(tmp_path, monkeypatch):
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        argv=("isox.py", "testdistro", "--output-dir", "elsewhere"),
+    )
+    monkeypatch.setattr(isox.requests, "get", router(f"{ISO_SHA256}  test.iso\n"))
+
+    isox.run()
+
+    assert (tmp_path / "elsewhere" / "test.iso").read_bytes() == ISO_BODY
+    assert not (tmp_path / "ISOx_Downloads").exists()
+
+
+CHECKSUM_BASE_CONFIG = {
+    "testdistro": {
+        "mirrors": [
+            "https://fast-mirror.test/iso/",
+            "https://canonical.test/iso/",
+        ],
+        "checksum_base": "https://canonical.test/iso/",
+        "checksum_filename": "sha256sums.txt",
+        "hash_algo": "sha256",
+        "iso_filename": "test.iso",
+    }
+}
+
+
+def test_checksum_comes_from_the_canonical_host_not_the_fastest_mirror(
+    tmp_path, monkeypatch, capsys
+):
+    # A rogue mirror can serve a modified ISO and a hash that matches it. Here the
+    # fast mirror serves both a bad ISO and a hash for it; the canonical host's
+    # checksum is the one that has to win.
+    tampered = b"tampered payload\n" * 64
+    checksum_requests = []
+
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.endswith("sha256sums.txt"):
+            checksum_requests.append(url)
+            if url.startswith("https://fast-mirror.test/"):
+                bad = hashlib.sha256(tampered).hexdigest()
+                return FakeResponse(text=f"{bad}  test.iso\n")
+            return FakeResponse(text=f"{ISO_SHA256}  test.iso\n")
+        body = tampered if url.startswith("https://fast-mirror.test/") else ISO_BODY
+        return FakeResponse(
+            200, {"Content-Length": str(len(body)), "ETag": '"v1"'}, body
+        )
+
+    setup_repo(tmp_path, monkeypatch, config=CHECKSUM_BASE_CONFIG)
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+    monkeypatch.setattr(
+        isox,
+        "check_mirror_throughput",
+        lambda url: 9_000_000 if url.startswith("https://fast-mirror.test/") else 1.0,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.run()
+
+    assert excinfo.value.code == 1
+    assert checksum_requests == ["https://canonical.test/iso/sha256sums.txt"]
+    assert (tmp_path / "ISOx_Downloads" / "test.iso.FAILED").exists()
+    assert "checksum mismatch" in capsys.readouterr().out

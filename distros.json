@@ -5,6 +5,7 @@
             "https://geo.mirror.pkgbuild.com/iso/latest/",
             "https://mirror.rackspace.com/archlinux/iso/latest/"
         ],
+        "checksum_base": "https://geo.mirror.pkgbuild.com/iso/latest/",
         "checksum_filename": "sha256sums.txt",
         "hash_algo": "sha256",
         "iso_filename": "archlinux-x86_64.iso"
@@ -12,13 +13,14 @@
     "debian": {
         "mirrors": [
             "https://debian.osuosl.org/debian-cdimage/current/amd64/iso-cd/",
-            "https://ftp.us.debian.org/debian-cdimage/current/amd64/iso-cd/",
             "https://mirror.cogentco.com/pub/linux/debian-cd/current/amd64/iso-cd/",
             "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"
         ],
+        "checksum_base": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/",
         "checksum_filename": "SHA256SUMS",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["netinst", "amd64"]
+        "iso_filename_contains": ["netinst", "amd64"],
+        "iso_filename_excludes": ["-edu-", "-mac-"]
     },
     "kali": {
         "mirrors": [
@@ -26,6 +28,7 @@
             "https://kali.download/base-images/current/",
             "https://mirrors.dotsrc.org/kali-images/current/"
         ],
+        "checksum_base": "https://kali.download/base-images/current/",
         "checksum_filename": "SHA256SUMS",
         "hash_algo": "sha256",
         "iso_filename_contains": ["installer-amd64"]
@@ -37,6 +40,7 @@
             "https://mirror.pilotfiber.com/alpinelinux/latest-stable/releases/x86_64/",
             "https://plug-mirror.rcac.purdue.edu/alpine/latest-stable/releases/x86_64/"
         ],
+        "checksum_base": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/",
         "checksum_filename": "{iso_filename}.sha256",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
@@ -48,7 +52,11 @@
             "https://mirrors.cicku.me/linuxmint/iso/stable/{version}/"
         ],
         "version_directory": true,
-        "version_discovery_url" : "https://pub.linuxmint.io/stable/",
+        "version_discovery_url" : [
+            "https://pub.linuxmint.io/stable/",
+            "https://mirrors.cicku.me/linuxmint/iso/stable/"
+        ],
+        "checksum_base": "https://pub.linuxmint.io/stable/{version}/",
         "checksum_filename": "sha256sum.txt",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
@@ -61,7 +69,11 @@
             "https://mirror.arizona.edu/fedora/linux/releases/{version}/Workstation/x86_64/iso/"
         ],
         "version_directory" : true,
-        "version_discovery_url" : "https://dl.fedoraproject.org/pub/fedora/linux/releases/",
+        "version_discovery_url" : [
+            "https://dl.fedoraproject.org/pub/fedora/linux/releases/",
+            "https://mirror.arizona.edu/fedora/linux/releases/"
+        ],
+        "checksum_base": "https://dl.fedoraproject.org/pub/fedora/linux/releases/{version}/Workstation/x86_64/iso/",
         "checksum_filename" : "CHECKSUM",
         "checksum_discovery_method" : "html_scan",
         "checksum_format" : "bsd",
@@ -73,6 +85,7 @@
         "mirrors" : [
             "https://download.opensuse.org/tumbleweed/iso/"
         ],
+        "checksum_base": "https://download.opensuse.org/tumbleweed/iso/",
         "checksum_filename": "openSUSE-Tumbleweed-NET-x86_64-Current.iso.sha256",
         "discovery_method": "checksum_scan",
         "hash_algo": "sha256",
@@ -84,6 +97,7 @@
             "https://mirrors.mit.edu/gentoo-distfiles/releases/amd64/autobuilds/current-install-amd64-minimal/",
             "https://gentoo.iro.umontreal.ca/gentoo/releases/amd64/autobuilds/current-install-amd64-minimal/"
         ],
+        "checksum_base": "https://distfiles.gentoo.org/releases/amd64/autobuilds/current-install-amd64-minimal/",
         "checksum_filename": "{iso_filename}.sha256",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
@@ -95,6 +109,7 @@
             "https://mirrors.summithq.com/voidlinux/live/current/",
             "https://repo-de.voidlinux.org/live/current/"
         ],
+        "checksum_base": "https://repo-default.voidlinux.org/live/current/",
         "checksum_filename": "sha256sum.txt",
         "checksum_format" : "bsd",
         "discovery_method": "html_scan",
@@ -105,6 +120,7 @@
         "mirrors": ["https://iso.builds.garudalinux.org/iso/garuda/mokka/{version}/"],
         "version_directory": true,
         "version_discovery_url": "https://iso.builds.garudalinux.org/iso/garuda/mokka/",
+        "checksum_base": "https://iso.builds.garudalinux.org/iso/garuda/mokka/{version}/",
         "checksum_filename": "{iso_filename}.sha256",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
@@ -117,8 +133,12 @@
             "https://ubuntu-releases.mirrorservice.org/releases/{version}/"
         ],
         "version_directory": true,
-        "version_discovery_url": "https://releases.ubuntu.com/",
+        "version_discovery_url": [
+            "https://releases.ubuntu.com/",
+            "https://mirror.arizona.edu/ubuntu-releases/"
+        ],
         "version_scheme": "ubuntu_lts",
+        "checksum_base": "https://releases.ubuntu.com/{version}/",
         "checksum_filename": "SHA256SUMS",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
@@ -131,7 +151,11 @@
             "https://mirror.cs.vt.edu/pub/rocky/{version}/isos/x86_64/"
         ],
         "version_directory": true,
-        "version_discovery_url": "https://download.rockylinux.org/pub/rocky/",
+        "version_discovery_url": [
+            "https://download.rockylinux.org/pub/rocky/",
+            "https://mirror.cs.vt.edu/pub/rocky/"
+        ],
+        "checksum_base": "https://download.rockylinux.org/pub/rocky/{version}/isos/x86_64/",
         "checksum_filename": "CHECKSUM",
         "checksum_format": "bsd",
         "discovery_method": "html_scan",
