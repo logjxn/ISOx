@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isox"
+# Single source of truth is isox.__version__, so `isox --version` and the
+# installed package metadata can't drift apart on a release bump.
+dynamic = ["version"]
+description = "Download Linux ISOs from the fastest mirror and verify them against published checksums"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Logan Jackson" }]
+keywords = ["linux", "iso", "download", "checksum", "mirror"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Archiving :: Mirroring",
+    "Topic :: Utilities",
+]
+dependencies = ["requests>=2.34.2", "beautifulsoup4>=4.15.0"]
+
+[project.urls]
+Homepage = "https://github.com/logjxn/ISOx"
+Issues = "https://github.com/logjxn/ISOx/issues"
+
+[project.scripts]
+isox = "isox:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "isox.__version__" }
+
+[tool.setuptools]
+py-modules = ["isox"]
+
+# distros.json is data, not code, and a single-module distribution has no package
+# directory to carry it. resolve_distros_path() looks here when the copy beside
+# the script is absent, which is the pip-installed case.
+[tool.setuptools.data-files]
+"share/isox" = ["distros.json"]
+
+[tool.black]
+# Matches requires-python. Without it black targets the newest version it knows,
+# which trips its AST safety check on any older interpreter running it.
+target-version = ["py310"]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+# black is the formatter of record and deliberately won't reflow comments or
+# strings, so enforcing a hard column limit on top of it just fights the formatter.
+ignore = ["E501"]

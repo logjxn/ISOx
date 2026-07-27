@@ -19,7 +19,16 @@ Every entry needs three fields:
 - `checksum_filename` - the name of the file the distro publishes its hashes
   in. Supports a `{iso_filename}` placeholder for distros that publish one
   checksum file per ISO.
-- `hash_algo` - usually `sha256`. Anything `hashlib` supports will work.
+- `hash_algo` - usually `sha256`. Anything `hashlib` supports will work, and it's
+  checked at startup rather than after the download.
+
+One more you should always set:
+
+- `checksum_base` - the directory URL on the **distro's own server** to fetch the
+  checksum from, instead of taking it from whichever mirror won the speed race. A
+  mirror that can serve a modified ISO can serve a matching hash just as easily, so
+  this is what stops one rogue mirror supplying both halves. Usually this is the
+  vendor-run entry already in your `mirrors` list. It takes `{version}` too.
 
 Then pick how ISOx should find the ISO filename. There are three strategies,
 chosen by which fields you set:
@@ -34,6 +43,29 @@ chosen by which fields you set:
 filename. Pick the ones that stay stable across releases, architecture,
 edition, that type of thing, and avoid anything containing a version number.
 
+### When your substrings match more than one ISO
+
+This is the part worth getting right, because the failure mode is quiet. Debian's
+`SHA256SUMS` lists `debian-`, `debian-edu-` and `debian-mac-` netinst images, and all
+three match `["netinst", "amd64"]`. Kali pairs every `.iso` with a `.iso.torrent` that
+matches the same substrings. A wrong pick still verifies cleanly, because the thing you
+downloaded has a valid published hash of its own - you just get an image you didn't ask
+for and a "file is good" message.
+
+So ISOx doesn't guess. Non-`.iso` files are dropped, and if more than one candidate
+survives in a checksum file the run stops and names them. Add `iso_filename_excludes` -
+a list of disqualifying substrings - to narrow it down:
+
+```json
+"iso_filename_contains": ["netinst", "amd64"],
+"iso_filename_excludes": ["-edu-", "-mac-"]
+```
+
+Release candidates (`_rc1`, `-beta`, `-alpha`) are filtered out for you everywhere.
+Don't skip this as a curiosity: Alpine publishes RCs into the same directory as final
+releases, and `_` sorts *above* `-`, so "newest wins" would otherwise pick
+`alpine-extended-3.24.2_rc1-x86_64.iso` over the actual release.
+
 ### Version folders
 
 If the distro has no permanent "latest" URL and instead puts ISOs in
@@ -41,6 +73,10 @@ version-numbered directories, set `"version_directory": true` and give a
 `version_discovery_url` pointing at the parent directory. Put `{version}` in
 your mirror URLs where the folder name goes, and ISOx will scrape the parent,
 sort the version-like folder names numerically, and place the newest one in.
+
+`version_discovery_url` also takes a list, tried in order. Give it a second host
+where you can - this step decides the directory everything else is fetched from,
+so one unreachable server here fails the run even when the mirrors are all fine.
 
 Ubuntu is the one distro that needed more than this, because "newest folder"
 and "newest LTS" aren't the same thing. That's what `version_scheme` exists
@@ -66,6 +102,7 @@ CHECKSUM; if your distro's scraped checksum file is named differently, mention i
     "mirrors": ["https://iso.builds.garudalinux.org/iso/garuda/mokka/{version}/"],
     "version_directory": true,
     "version_discovery_url": "https://iso.builds.garudalinux.org/iso/garuda/mokka/",
+    "checksum_base": "https://iso.builds.garudalinux.org/iso/garuda/mokka/{version}/",
     "checksum_filename": "{iso_filename}.sha256",
     "discovery_method": "html_scan",
     "hash_algo": "sha256",
@@ -97,13 +134,22 @@ though.
 
 ## Acceptance criteria for a new distro
 
-The test suite is hermetic, it stubs the network, so it can't tell you
-whether a real mirror still has the layout you configured. That check is
-manual, and it's the bar for merging:
+The default test suite is hermetic, it stubs the network, so it can't tell you
+whether a real mirror still has the layout you configured. Two of the three
+checks below cover that, and they're the bar for merging:
 
-1. `python isox.py <distro>` completes a full download and prints
+1. `pytest -m live -k <distro>` passes. This resolves the version folder, the
+   ISO filename and the checksum against the real mirrors, and confirms the
+   filename it settled on actually has an entry in the published checksum file.
+   It downloads no ISO, so it takes seconds rather than an evening, and it
+   catches the common config mistakes: substrings that match two images,
+   substrings that match none, a checksum file that lists a different name.
+2. `python isox.py <distro>` completes a full download and prints
    `Checksum matches, file is good.`
-2. The resulting ISO actually boots.
+3. The resulting ISO actually boots.
+
+Run step 1 first. If it fails, steps 2 and 3 will waste a lot of bandwidth
+telling you the same thing more slowly.
 
 Please verify these two to satisfy PR requirements. A config that doesn't boot
 or run isn't exactly the criteria. Again, if you are unable to test, just
@@ -113,11 +159,14 @@ specify in the PR and I'll do the testing on my end and with VMs. I don't mind.
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-pytest
+pytest              # hermetic, no network
+pytest -m live      # checks every distro against the real mirrors, ~30s
+pytest -m live -s   # same, printing the filename and hash it resolved
 ```
 
-Run `black .` before committing. CI runs `black --check` and will fail on
-formatting alone, which is a frustrating way to get a red X.
+Run `black .` and `ruff check .` before committing. CI runs both and will fail on
+formatting alone, which is a frustrating way to get a red X. CI does *not* run the
+live tests, since a mirror having a bad afternoon isn't a reason to fail a PR.
 
 ## One warning about the test suite
 

@@ -138,11 +138,101 @@ VALID_CONFIG = {
             ),
             "non-HTTPS",
         ),
+        (
+            dict(
+                VALID_CONFIG,
+                version_directory=True,
+                version_discovery_url=[
+                    "https://example.test/",
+                    "http://fallback.test/",
+                ],
+            ),
+            "non-HTTPS",
+        ),
+        (
+            dict(VALID_CONFIG, checksum_base="http://example.test/iso/"),
+            "non-HTTPS",
+        ),
+        # Rejected up front rather than after a multi-gigabyte download
+        (dict(VALID_CONFIG, hash_algo="sha257"), "hash_algo Python doesn't support"),
+        (dict(VALID_CONFIG, hash_algo=None), "hash_algo Python doesn't support"),
+        (
+            {
+                "mirrors": ["https://example.test/iso/"],
+                "checksum_filename": "hash.txt",
+                "hash_algo": "sha256",
+                "iso_filename_contains": ["example"],
+                "checksum_format": "single",
+            },
+            "lists no filenames",
+        ),
     ],
 )
 def test_rejects_invalid_config(config, message):
     with pytest.raises(isox.ISOxError, match=message):
         isox.validate_distro_config("testdistro", config)
+
+
+def test_accepts_a_list_of_version_discovery_urls():
+    isox.validate_distro_config(
+        "testdistro",
+        dict(
+            VALID_CONFIG,
+            version_directory=True,
+            version_discovery_url=["https://a.test/", "https://b.test/"],
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "configured, expected",
+    [
+        (None, []),
+        ("https://a.test/", ["https://a.test/"]),
+        (
+            ["https://a.test/", "https://b.test/"],
+            ["https://a.test/", "https://b.test/"],
+        ),
+    ],
+)
+def test_version_discovery_urls_normalises_to_a_list(configured, expected):
+    config = {} if configured is None else {"version_discovery_url": configured}
+    assert isox.version_discovery_urls(config) == expected
+
+
+@pytest.mark.parametrize(
+    "filename, expected",
+    [
+        ("alpine-extended-3.24.1-x86_64.iso", True),
+        ("alpine-extended-3.24.2_rc1-x86_64.iso", False),
+        ("ubuntu-26.04-beta-desktop-amd64.iso", False),
+        ("debian-13.6.0-amd64-netinst.iso", True),
+    ],
+)
+def test_default_excludes_reject_pre_release_artifacts(filename, expected):
+    assert (
+        isox.filename_matches(filename, [], isox.DEFAULT_FILENAME_EXCLUDES) is expected
+    )
+
+
+def test_shipped_iso_names_survive_the_default_excludes():
+    # A default filter that quietly rejected a real release would be worse than
+    # the RC problem it exists to solve.
+    for name in (
+        "archlinux-x86_64.iso",
+        "debian-13.6.0-amd64-netinst.iso",
+        "kali-linux-2026.2-installer-amd64.iso",
+        "alpine-extended-3.24.1-x86_64.iso",
+        "linuxmint-22.3-cinnamon-64bit.iso",
+        "Fedora-Workstation-Live-44-1.7.x86_64.iso",
+        "openSUSE-Tumbleweed-NET-x86_64-Snapshot20260724-Media.iso",
+        "install-amd64-minimal-20260712T170110Z.iso",
+        "void-live-x86_64-20250202-base.iso",
+        "garuda-mokka-linux-zen-260720.iso",
+        "ubuntu-26.04-desktop-amd64.iso",
+        "Rocky-10.2-x86_64-minimal.iso",
+    ):
+        assert isox.filename_matches(name, [], isox.DEFAULT_FILENAME_EXCLUDES), name
 
 
 def test_accepts_minimal_valid_config():
@@ -199,6 +289,22 @@ def test_verify_checksum_match(tmp_path):
     target = tmp_path / "arch.iso"
     target.write_bytes(b"hello")
     lookup = {"arch.iso": HELLO_SHA256}
+    assert isox.verify_checksum(target, "arch.iso", lookup, "sha256") is True
+
+
+def test_verify_checksum_accepts_an_uppercase_published_hash(tmp_path):
+    # hexdigest() is lowercase; a distro publishing uppercase would otherwise be
+    # reported as "may be corrupted or tampered with" and quarantined.
+    target = tmp_path / "arch.iso"
+    target.write_bytes(b"hello")
+    lookup = {"arch.iso": HELLO_SHA256.upper()}
+    assert isox.verify_checksum(target, "arch.iso", lookup, "sha256") is True
+
+
+def test_verify_checksum_tolerates_surrounding_whitespace(tmp_path):
+    target = tmp_path / "arch.iso"
+    target.write_bytes(b"hello")
+    lookup = {"arch.iso": f"  {HELLO_SHA256}\n"}
     assert isox.verify_checksum(target, "arch.iso", lookup, "sha256") is True
 
 
