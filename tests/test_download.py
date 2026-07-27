@@ -241,7 +241,7 @@ def test_read_meta_round_trips_url_and_fingerprint(tmp_path):
     assert isox.read_meta(str(meta)) == {"url": URL, "fingerprint": '"v1"'}
 
 
-def test_read_meta_reads_pre_2_6_bare_fingerprint(tmp_path):
+def test_read_meta_reads_pre_3_0_bare_fingerprint(tmp_path):
     # An ETag is a quoted string, so json.loads() parses one without complaint.
     # The old format has to be recognised by shape, not by whether it's valid JSON.
     meta = tmp_path / "x.meta"
