@@ -328,17 +328,17 @@ Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re
 
 Run it straight from a clone:
 
-    pip install -r requirements.txt
-    python isox.py arch
-
-Or install it and get an `isox` command on your PATH:
-
     pip install .
+    isox arch
+
+Or install from PyPI:
+
+    pip install isox
     isox arch
 
 ## Development
 
-    pip install -r requirements.txt -r requirements-dev.txt
+    pip install -e '.[dev]'
     pytest
     black --check .
     ruff check .

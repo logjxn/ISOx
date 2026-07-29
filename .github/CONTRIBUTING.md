@@ -158,7 +158,7 @@ specify in the PR and I'll do the testing on my end and with VMs. I don't mind.
 ## Development setup
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -e '.[dev]'
 pytest              # hermetic, no network
 pytest -m live      # checks every distro against the real mirrors, ~30s
 pytest -m live -s   # same, printing the filename and hash it resolved

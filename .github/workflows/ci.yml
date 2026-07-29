@@ -20,7 +20,7 @@ jobs:
       - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install '.[dev]'
       - name: Check formatting
         run: black --check .
       - name: Lint
@@ -28,7 +28,7 @@ jobs:
       - name: Security scan
         run: bandit isox.py
       - name: Audit dependencies
-        run: pip-audit -r requirements.txt
+        run: pip-audit .
 
   test:
     runs-on: ubuntu-latest
@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -e '.[dev]'
       - name: Smoke test CLI
         run: python isox.py --list
       - name: Run tests

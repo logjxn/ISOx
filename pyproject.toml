@@ -57,3 +57,21 @@ select = ["E", "F", "W", "B"]
 # black is the formatter of record and deliberately won't reflow comments or
 # strings, so enforcing a hard column limit on top of it just fights the formatter.
 ignore = ["E501"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1",
+    "black==26.5.1",
+    "ruff>=0.14.0",
+    "bandit>=1.9.4",
+    "pip-audit>=2.10.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+# Single-quoted TOML so the inner double quotes survive verbatim.
+addopts = '-m "not live"'
+markers = [
+    "live: hits real mirrors over the network (deselected by default)",
+]
