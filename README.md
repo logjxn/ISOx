@@ -352,7 +352,7 @@ one exception: it resolves every distro in `distros.json` against the real mirro
 and checks the filename it lands on has a published checksum, without downloading
 any ISO. It's deselected by default and takes about 30 seconds:
 
-    pytest -m live       # all 12 distros
+    pytest -m live       # all distros
     pytest -m live -s    # printing each resolved filename and hash
     pytest -m live -k rocky
 
