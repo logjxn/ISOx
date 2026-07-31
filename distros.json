@@ -161,5 +161,23 @@
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["x86_64", "minimal"]
+    },
+    "alma": {
+        "mirrors": [
+            "https://mirrors.rit.edu/almalinux/{version}/isos/x86_64/",
+            "https://mirror.clarkson.edu/almalinux/{version}/isos/x86_64/",
+            "https://mirror.linux.duke.edu/almalinux/{version}/isos/x86_64/"
+        ],
+        "version_directory": true,
+        "version_discovery_url": [
+            "https://repo.almalinux.org/almalinux/",
+            "https://mirrors.rit.edu/almalinux/"
+        ],
+        "checksum_base": "https://repo.almalinux.org/almalinux/{version}/isos/x86_64/",
+        "checksum_filename": "CHECKSUM",
+        "checksum_format": "bsd",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["x86_64", "minimal"]
     }
 }
