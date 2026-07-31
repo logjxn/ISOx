@@ -25,6 +25,8 @@ I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually vi
 Furthermore, I simply love Linux. It's been my daily driver ever since I discovered it, and I want to see it continue to grow. I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
 
 ## Usage
+Once installed from PyPI, `isox` works as a bare command. From a clone, use `python isox.py`. The two are interchangeable; examples below use the clone form.
+
 List every supported distro:
 ```bash
 python isox.py --list
@@ -49,6 +51,7 @@ python isox.py void
 python isox.py garuda
 python isox.py ubuntu
 python isox.py rocky
+python isox.py alma
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
