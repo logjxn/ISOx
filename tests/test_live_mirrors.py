@@ -15,11 +15,18 @@ fetch the ISO and print "Checksum matches, file is good."
 
 import json
 
+import os
+
 import pytest
 
 import isox
 
-with open(isox.DISTROS_PATH) as f:
+# The repo's own config, not isox.DISTROS_PATH: that resolves ~/.config/isox
+# first, so anyone who followed the README's advice about surviving
+# `pip install -U` would silently be testing their copy instead of what ships.
+DISTROS_PATH = os.path.join(os.path.dirname(isox.__file__), "distros.json")
+
+with open(DISTROS_PATH) as f:
     SHIPPED_DISTROS = json.load(f)
 
 pytestmark = pytest.mark.live

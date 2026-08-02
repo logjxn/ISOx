@@ -15,6 +15,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      - name: Fail if the tag doesn't match __version__
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' isox.py)
+          test "$tag" = "$pkg" || { echo "tag $tag != __version__ $pkg"; exit 1; }
       - name: Build wheel and sdist
         run: |
           python -m pip install --upgrade pip build
