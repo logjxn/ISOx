@@ -18,7 +18,7 @@ jobs:
       - name: Fail if the tag doesn't match __version__
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          pkg=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' isox.py)
+          pkg=$(grep '^__version__' isox.py | tr -d '\r' | cut -d'"' -f2)
           test "$tag" = "$pkg" || { echo "tag $tag != __version__ $pkg"; exit 1; }
       - name: Build wheel and sdist
         run: |
