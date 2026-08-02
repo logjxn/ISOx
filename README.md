@@ -52,6 +52,8 @@ python isox.py garuda
 python isox.py ubuntu
 python isox.py rocky
 python isox.py alma
+python isox.py cachyos
+python isox.py mageia
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
@@ -327,7 +329,7 @@ documentation covers its public signing keys and the verification steps.
 - `requests`
 - `beautifulsoup4` - used for HTML directory-listing discovery
 
-Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re`) is part of the Python standard library.
+Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re`, `site`, `sysconfig`) is part of the Python standard library.
 
 Run it straight from a clone:
 

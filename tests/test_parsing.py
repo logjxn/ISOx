@@ -231,6 +231,9 @@ def test_shipped_iso_names_survive_the_default_excludes():
         "garuda-mokka-linux-zen-260720.iso",
         "ubuntu-26.04-desktop-amd64.iso",
         "Rocky-10.2-x86_64-minimal.iso",
+        "AlmaLinux-10.1-x86_64-minimal.iso",
+        "cachyos-desktop-linux-260628.iso",
+        "Mageia-10-x86_64.iso",
     ):
         assert isox.filename_matches(name, [], isox.DEFAULT_FILENAME_EXCLUDES), name
 

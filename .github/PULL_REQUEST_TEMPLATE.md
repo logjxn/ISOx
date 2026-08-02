@@ -8,6 +8,7 @@ Closes #
 
 - [ ] `pytest` passes locally
 - [ ] `black .` has been run
+- [ ] `ruff check .` has been run
 
 **New distro only** — one of these:
 

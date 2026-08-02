@@ -28,6 +28,17 @@ body:
       required: true
 
   - type: input
+    id: checksum_base
+    attributes:
+      label: Distro's own checksum host
+      description: >
+        The directory URL on the distribution's *own* server, if you know which of
+        your mirrors that is. ISOx takes the ISO from whichever mirror is fastest
+        but the hash from here, so one rogue mirror can't supply both halves.
+        Usually it's the vendor-run entry already in your list above. HTTPS only.
+      placeholder: https://releases.example.org/latest/
+
+  - type: input
     id: checksum_filename
     attributes:
       label: Checksum filename

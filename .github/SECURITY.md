@@ -17,7 +17,7 @@ distribution's published checksum is itself wrong or tampered with at the
 source, ISOx will faithfully verify against it and report success.
 
 This is a deliberate design decision, explained in the
-[README](https://github.com/logjxn/ISOx/blob/main/README.md#note). If your
+[README](https://github.com/logjxn/ISOx/blob/main/README.md#what-verification-does-and-doesnt-cover). If your
 threat model requires verifying the origin of a release, follow the
 distribution's own GPG instructions.
 
