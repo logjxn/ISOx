@@ -179,5 +179,31 @@
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["x86_64", "minimal"]
+    },
+    "cachyos": {
+        "mirrors": ["https://build.cachyos.org/ISO/desktop/{version}/"],
+        "version_directory": true,
+        "version_discovery_url": ["https://build.cachyos.org/ISO/desktop/"],
+        "checksum_base": "https://build.cachyos.org/ISO/desktop/{version}/",
+        "checksum_filename": "{iso_filename}.sha256",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["cachyos-desktop", "linux"]
+    },
+    "mageia": {
+        "mirrors": [
+            "https://us.mirrors.cicku.me/mageia/iso/{version}/Mageia-{version}-x86_64/",
+            "https://mirror.math.princeton.edu/pub/mageia/iso/{version}/Mageia-{version}-x86_64/"
+        ],
+        "version_directory": true,
+        "version_discovery_url": [
+            "https://us.mirrors.cicku.me/mageia/iso/",
+            "https://mirror.math.princeton.edu/pub/mageia/iso/"
+        ],
+        "checksum_base": "https://mirror.math.princeton.edu/pub/mageia/iso/{version}/Mageia-{version}-x86_64/",
+        "checksum_filename": "{iso_filename}.sha512",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha512",
+        "iso_filename_contains": ["Mageia", "x86_64"]
     }
 }
