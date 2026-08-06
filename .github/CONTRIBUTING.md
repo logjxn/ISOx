@@ -160,7 +160,7 @@ specify in the PR and I'll do the testing on my end and with VMs. I don't mind.
 ```bash
 pip install -e '.[dev]'
 pytest              # hermetic, no network
-pytest -m live      # checks every distro against the real mirrors, ~30s
+pytest -m live      # checks every distro against the real mirrors, ~60s
 pytest -m live -s   # same, printing the filename and hash it resolved
 ```
 

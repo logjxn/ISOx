@@ -24,7 +24,20 @@ I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually vi
 
 Furthermore, I simply love Linux. It's been my daily driver ever since I discovered it, and I want to see it continue to grow. I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
 
+## Install
+
+From PyPI:
+
+    pip install isox
+    isox arch
+
+Or straight from a clone:
+
+    pip install .
+    isox arch
+
 ## Usage
+
 Once installed from PyPI, `isox` works as a bare command. From a clone, use `python isox.py`. The two are interchangeable; examples below use the clone form.
 
 List every supported distro:
@@ -58,7 +71,6 @@ python isox.py mageia
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
 
-**A Normal Run**
 ```
 https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 3.33 MB/s
 https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 1.98 MB/s
@@ -67,16 +79,9 @@ Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/lat
 [##############################] 100.0%    3.41 MB/s
 Checksum matches, file is good.
 ```
-**Resumed Output**
-```
-https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 3.28 MB/s
-https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 2.04 MB/s
-https://mirror.rackspace.com/archlinux/iso/latest/archlinux-x86_64.iso is unreachable
-Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/latest ...
-Resuming from 743.6 MB ...
-[##############################] 100.0%    3.26 MB/s
-Checksum matches, file is good.
-```
+
+Resumed runs, unreachable mirrors, and verification failures are shown in
+[the design doc](https://github.com/logjxn/ISOx/blob/main/docs/design.md).
 
 ## Features
 
@@ -98,6 +103,10 @@ Checksum matches, file is good.
 - **Path-traversal protection** - filenames discovered from remote HTML listings are validated before ever being used in a URL or local file path.
 
 ## How it works
+
+This section covers what you need to configure and run ISOx. For how each piece is
+implemented and why it works the way it does, see
+[docs/design.md](https://github.com/logjxn/ISOx/blob/main/docs/design.md).
 
 ### Config format (`distros.json`)
 
@@ -163,12 +172,6 @@ Searched in this order, first hit wins:
 3. Beside `isox.py` - the git clone case
 4. `share/isox/distros.json` under the install scheme's data directory, the user base, or `sys.prefix`
 
-Four locations for the install case rather than one because a wheel's data files land
-wherever the *install scheme* puts them, and that varies by how pip was invoked. venv and
-pipx have `sys.prefix` and the data path coincide; `pip install --user` puts it under the
-user base; Debian's patched system Python defaults to `/usr/local` while `sys.prefix` stays
-`/usr`. Duplicates collapse, so a normal install shows one path, not three.
-
 **If you customise mirrors on a pip install, put your copy at (2).** `pip install -U isox`
 replaces what it installed, so edits made directly to (4) revert on upgrade without
 warning. A copy in your config directory survives.
@@ -180,123 +183,70 @@ cp "$(isox --list | sed -n 's/^config: //p')" ~/.config/isox/distros.json
 ```
 
 `isox --list` prints which file won, which is the quickest way to answer "why is it
-using the wrong mirrors".
+using the wrong mirrors". Why (4) is three locations rather than one is covered in
+[Config resolution](https://github.com/logjxn/ISOx/blob/main/docs/design.md#config-resolution).
 
-### ISO filename discovery, three strategies
+### ISO filename discovery
 
 Not every distro publishes ISOs the same way, so the tool picks a strategy per distro based on which config fields are present. No per-distro code exists anywhere in the script.
 
 - **`"iso_filename"`** - for distros with one fixed, unchanging filename.
-- **`"iso_filename_contains"` + default discovery** - scans a shared checksum file for a filename matching all the given substrings, since versioned filenames would be inefficient to hardcode.
-- **`"iso_filename_contains"` + `"discovery_method": "html_scan"`** - for distros with no single shared checksum file to scan. Scrapes the actual directory listing HTML with BeautifulSoup and filters `<a href>` links ending in `.iso` that match all the necessary substrings.
+- **`"iso_filename_contains"` + default discovery** - scans a shared checksum file for a filename matching all the given substrings.
+- **`"iso_filename_contains"` + `"discovery_method": "html_scan"`** - scrapes the directory listing HTML for distros with no single shared checksum file.
 
-Both scanning strategies filter out pre-release artifacts by default. This matters more
-than it sounds: Alpine publishes `alpine-extended-3.24.2_rc1-x86_64.iso` into the same
-directory as the final release, and because `_` sorts above `-`, a plain "newest wins"
-comparison hands you the release candidate. An RC has a perfectly valid published
-checksum, so it would download and verify without complaint.
+Both scanning strategies filter out pre-release artifacts, and only `.iso` files are
+considered. The two break ties differently on purpose: a directory listing legitimately
+holds several versions, so the newest wins, while several matches inside one checksum file
+means the config is ambiguous and the run stops.
+[Full explanation, with the Alpine and Debian cases that motivate both](https://github.com/logjxn/ISOx/blob/main/docs/design.md#iso-filename-discovery).
 
-The two strategies also differ in how they break ties, deliberately. A directory listing
-legitimately holds several versions, so the newest wins. A checksum file describes one
-release, so several matches means the config is ambiguous rather than that there is a
-choice to make - the run stops and names the candidates:
+### Version-folder discovery
 
-```
-Error: 'debian' matched 3 ISOs in the checksum file at
-https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA256SUMS:
-debian-13.6.0-amd64-netinst.iso, debian-edu-13.6.0-amd64-netinst.iso,
-debian-mac-13.6.0-amd64-netinst.iso. Narrow iso_filename_contains or add
-iso_filename_excludes in distros.json.
-```
+For distros with no stable "latest" URL alias, `"version_directory": true` scrapes the
+parent directory first, sorts version-like folder names numerically, and splices the newest
+into every `{version}` placeholder before any ISO discovery happens.
+`version_discovery_url` takes a list as well as a single URL, tried in order.
 
-Only `.iso` files are considered. Checksum files cover every artifact of a release, and
-Kali's `SHA256SUMS` pairs each ISO with a `.iso.torrent` that matches exactly the same
-substrings - without the extension filter, a 100KB torrent could be downloaded, verified
-against its own hash, and reported as a good ISO.
-
-**Version-folder auto-discovery** (`"version_directory": true`) is a separate, earlier step for distros with no stable "latest" URL alias at all. Before any ISO discovery happens, the parent directory is scraped, version-numbered folder names are parsed and sorted *numerically*, and the newest one is spliced into every `{version}` placeholder across the mirror URLs.
-
-`version_discovery_url` takes a list as well as a single URL, and they are tried in order.
-This step decides which directory everything else is fetched from, so a single unreachable
-host here would otherwise fail the whole run even when every configured mirror is healthy.
-
-For Ubuntu, `version_scheme` is optional and only applies alongside version_directory. Left out, the newest version-numbered folder is selected. Set to "ubuntu_lts", only even-year .04 folders match, so `python isox.py ubuntu` resolves to the latest LTS. Interim releases are skipped intentionally, since LTS is the better default for a daily driver.
+`version_scheme: "ubuntu_lts"` narrows this to even-year `.04` folders, so
+`python isox.py ubuntu` resolves to the latest LTS rather than the latest interim.
+[More on the sorting and the LTS case](https://github.com/logjxn/ISOx/blob/main/docs/design.md#version-folder-discovery).
 
 ### Checksum parsing
 
-- **`"multi"` (default)** - the standard `<hash>  <filename>` format used by `sha256sum`'s own output.
-- **`"single"`** - the whole file content is treated as the hash, with the filename supplied from context rather than parsed. Available for distros that publish a genuinely bare hash.
-- **`"bsd"`** - parses lines shaped like `SHA256 (filename) = hash`, used by some distros. Only lines starting with the configured `hash_algo` are read, so a file listing multiple algorithms for the same filename can't have the wrong one picked.
+Three published formats are normalized into the same `{filename: hash}` lookup:
+
+- **`multi`** (default) - `<hash>  <filename>`, one per line
+- **`bsd`** - `SHA256 (filename) = <hash>`
+- **`single`** - the file contains only the hash
+
+[Parsing details, including how `bsd` picks the right algorithm](https://github.com/logjxn/ISOx/blob/main/docs/design.md#checksum-parsing).
 
 ### Mirror selection
 
-Each candidate mirror is sampled with a ranged GET request, pulling the first ~2MB of the actual ISO via an HTTP `Range` header, and the real transfer speed (bytes/second) is measured over that sample. The mirror with the highest sampled throughput is selected for the ISO download. The checksum is fetched separately, from `checksum_base`.
-
-Mirrors that time out or return an error status are caught (`requests.exceptions.RequestException`) and skipped rather than crashing the whole run.
-
-**All Mirrors Down**
-```
-https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso is unreachable
-https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso is unreachable
-https://mirror.rackspace.com/archlinux/iso/latest/archlinux-x86_64.iso is unreachable
-Error: none of the mirrors for this distro are reachable right now. Try again soon, or swap the mirrors in distros.json.
-```
-
+Each candidate mirror is sampled with a ranged GET pulling the first ~2MB of the actual ISO,
+and real throughput is measured over that sample. Fastest wins. Mirrors that time out or
+error are skipped rather than crashing the run. The checksum is fetched separately, from
+`checksum_base`.
+[Sampling mechanics and the all-mirrors-down output](https://github.com/logjxn/ISOx/blob/main/docs/design.md#mirror-selection).
 
 ### Resumable downloads
 
-Downloads are written to `<filename>.part` and only renamed to the final name once the transfer completes, so a partial file can never be mistaken for a finished one. On the next run, if a `.part` exists, its size becomes the offset in a `Range: bytes=N-` request and the transfer continues from there.
+Downloads are written to `<filename>.part` and only renamed to the final name once the
+transfer completes, so a partial can never be mistaken for a finished file. On the next run
+the `.part` size becomes the offset in a `Range: bytes=N-` request.
 
-Four things can go wrong with a resume, and each is handled:
-
-- **The `.part` is larger than the file on the server.** The server answers `416 Range Not Satisfiable`, which means the partial is stale: it's deleted and the download restarts.
-- **The `.part` belongs to an older release.** Rolling distros like Arch reuse the same filename (`archlinux-x86_64.iso`) for a new image every month, so a partial from June would happily append onto July's file and produce a corrupt iso. ISOx stores the mirror's `ETag`/`Last-Modified` alongside the `.part` and discards the partial if it no longer matches. If the server publishes neither header, the partial is discarded after 24 hours instead.
-- **A different mirror wins the race this time.** `ETag`s are per-server - nginx derives them from mtime and size, which differ between mirrors holding identical bytes - so a fingerprint from one mirror says nothing about another. The URL is recorded alongside the fingerprint and they're only compared when they came from the same place, otherwise the 24-hour age check applies. Without this, changing mirrors between runs looks exactly like the file changing, and a 90%-complete download gets thrown away.
-- **The server ignores the `Range` header** and sends the whole file with a `200`. The offset is reset and the file is rewritten from scratch rather than appended to.
-
-A transfer that ends short of the advertised `Content-Length` keeps its `.part` and exits
-non-zero rather than being promoted. A short read is the exact case resuming exists for,
-so turning it into a `.FAILED` ISO would throw away work that was still good.
-
-**Stale Partial Downloads**
-```
-Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/latest ...
-Partial download doesn't match file on server. Starting fresh.
-[##############################] 100.0%    3.39 MB/s
-Checksum matches, file is good.
-```
-
-Checksum verification remains the final stop: a bad merge that somehow slipped through would fail verification and be quarantined.
+Four things can go wrong with a resume - a partial larger than the file on the server, a
+partial from an older release, a different mirror winning the race, and a server that
+ignores `Range` entirely - and each is handled.
+[How each one is detected](https://github.com/logjxn/ISOx/blob/main/docs/design.md#resumable-downloads).
 
 ### Checksum verification
 
-The distro's checksum file is fetched new on every run, from `checksum_base` rather than from the mirror that served the ISO, and parsed into a `{filename: hash}` lookup dictionary. The downloaded file is then hashed via `hashlib` and compared against the expected hash with `hmac.compare_digest`, case-insensitively - `hexdigest()` is always lowercase and not every distro publishes it that way, and a case difference would otherwise be reported as tampering.
-
-If the hashes don't match, the ISO is renamed to `<filename>.FAILED`. If no checksum entry could be found for the file at all, it's renamed to `<filename>.UNVERIFIED`. In both cases the process exits non-zero.
-
-**Verification Failure**
-```
-[##############################] 100.0%    3.12 MB/s
-WARNING: checksum mismatch, file may be corrupted or tampered with!
-Renamed to ISOx_Downloads/archlinux-x86_64.iso.FAILED so it can't be mistaken for a verified ISO.
-```
-
-**This was tested:** I created a separate script to append garbage bytes to a previously-verified ISO, then ran the same `verify_checksum()` function used in the main program against it. It correctly returns `False`, confirming the verification logic detects tampering/corruption rather than always reporting success.
-*The script I used to test corruption is below. Feel free to try for yourself.*
-```python
-from isox import verify_checksum
-import requests
-
-response = requests.get("https://fastly.mirror.pkgbuild.com/iso/latest/sha256sums.txt")
-hash_lookup = {}
-for line in response.text.splitlines():
-    parts = line.split()
-    if len(parts) == 2:
-        hash_lookup[parts[1]] = parts[0]
-
-result = verify_checksum("ISOx_Downloads/archlinux-x86_64.iso", "archlinux-x86_64.iso", hash_lookup, "sha256")
-print("Verified:", result)  # should print False now, after corruption
-```
+The checksum file is fetched new on every run, from `checksum_base` rather than from the
+mirror that served the ISO, and compared with `hmac.compare_digest`. A hash mismatch
+renames the ISO to `<filename>.FAILED`; a missing entry renames it to
+`<filename>.UNVERIFIED`. Both exit non-zero.
+[Verification details, and the corruption test I ran against it](https://github.com/logjxn/ISOx/blob/main/docs/design.md#checksum-verification).
 
 ## What verification does and doesn't cover
 
@@ -331,16 +281,6 @@ documentation covers its public signing keys and the verification steps.
 
 Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re`, `site`, `sysconfig`) is part of the Python standard library.
 
-Run it straight from a clone:
-
-    pip install .
-    isox arch
-
-Or install from PyPI:
-
-    pip install isox
-    isox arch
-
 ## Development
 
     pip install -e '.[dev]'
@@ -352,7 +292,7 @@ Or install from PyPI:
 The suite is hermetic and stubs the network. `tests/test_live_mirrors.py` is the
 one exception: it resolves every distro in `distros.json` against the real mirrors
 and checks the filename it lands on has a published checksum, without downloading
-any ISO. It's deselected by default and takes about 30 seconds:
+any ISO. It's deselected by default and takes about a minute:
 
     pytest -m live       # all distros
     pytest -m live -s    # printing each resolved filename and hash
