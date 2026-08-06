@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.2.0"
+__version__ = "3.2.1"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
