@@ -7,7 +7,7 @@
 ![OS](https://img.shields.io/badge/platform-Linux-orange)
 ![CI](https://github.com/logjxn/ISOx/actions/workflows/ci.yml/badge.svg)
 
-A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest available source, and cryptographically verifies file integrity against the checksum published by the distribution itself, so you never have to manually hunt down hashes or skip verification because it's tedious.
+A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest available source, and cryptographically verifies file integrity against the checksum published by the distribution itself, so you never have to manually hunt down hashes or skip verification again.
 
 ```
 Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
@@ -20,9 +20,9 @@ vouching for them. See [What verification does and doesn't cover](#what-verifica
 
 ## Why
 
-I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. This poses an integrity risk (modified ISOs, corruption, etc.), so I built a tool that automates the whole pipeline and makes verification the default, and not an extra step.
+I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. This poses an integrity risk (modified ISOs, corruption, etc.), so I built a tool that automates the whole pipeline and makes verification simple.
 
-Furthermore, I simply love Linux. It's been my daily driver ever since I discovered it, and I want to see it continue to grow. I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
+Furthermore, I simply love Linux. It's been my daily driver for a while now, and I want to see it continue to grow. I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
 
 ## Install
 
@@ -232,12 +232,12 @@ error are skipped rather than crashing the run. The checksum is fetched separate
 ### Resumable downloads
 
 Downloads are written to `<filename>.part` and only renamed to the final name once the
-transfer completes, so a partial can never be mistaken for a finished file. On the next run
+transfer completes, so a partial can't be mistaken for a finished file. On the next run
 the `.part` size becomes the offset in a `Range: bytes=N-` request.
 
 Four things can go wrong with a resume - a partial larger than the file on the server, a
 partial from an older release, a different mirror winning the race, and a server that
-ignores `Range` entirely - and each is handled.
+ignores `Range` entirely. Each is handled.
 [How each one is detected](https://github.com/logjxn/ISOx/blob/main/docs/design.md#resumable-downloads).
 
 ### Checksum verification
