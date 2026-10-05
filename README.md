@@ -67,6 +67,7 @@ python isox.py rocky
 python isox.py alma
 python isox.py cachyos
 python isox.py mageia
+python isox.py openmandriva
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
