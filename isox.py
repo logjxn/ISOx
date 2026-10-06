@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.3.0"
+__version__ = "3.3.1"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -44,22 +44,17 @@ def distros_path_candidates():
     if override:
         return [override]
     candidates = [
-        # A user's own copy wins, and unlike the bundled one it survives an
-        # upgrade: pip replaces what it installed, so a customised mirror list
-        # kept only there would silently revert on `pip install -U isox`.
+        # A user's own copy wins, and unlike the bundled one it survives an upgrade
         os.path.join(user_config_dir(), "distros.json"),
         # Beside the script: a git clone.
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "distros.json"),
-        # The install scheme's own data directory: correct for Debian's
-        # /usr/local default, and for anything else that relocates data.
+        # The install scheme's own data directory
         os.path.join(sysconfig.get_path("data"), "share", "isox", "distros.json"),
         # pip install --user.
         os.path.join(site.getuserbase(), "share", "isox", "distros.json"),
         # venv and pipx, where prefix and data coincide.
         os.path.join(sys.prefix, "share", "isox", "distros.json"),
     ]
-    # These collapse to the same path on a normal install, and a "Looked in:"
-    # list that repeats itself reads like a bug.
     return list(dict.fromkeys(candidates))
 
 
@@ -74,10 +69,6 @@ def resolve_distros_path():
 DISTROS_PATH = resolve_distros_path()
 
 # Distros publish release candidates into the same directory as final releases
-# (Alpine ships _rc1/_rc2 ISOs right beside the release they precede). "_" sorts
-# above "-", so an RC beats the final of the same version in natural_sort_key and
-# would be handed to the user as the current release. Always filtered; a distro
-# can filter more via "iso_filename_excludes".
 DEFAULT_FILENAME_EXCLUDES = ("_rc", "-rc", "_beta", "-beta", "_alpha", "-alpha")
 
 USER_AGENT = f"ISOx/{__version__} (+https://github.com/logjxn/ISOx)"
@@ -86,11 +77,7 @@ USER_AGENT = f"ISOx/{__version__} (+https://github.com/logjxn/ISOx)"
 def request_headers(extra=None):
     """Headers for every outbound request, identifying ISOx to mirror operators.
 
-    requests defaults to "python-requests/x.y.z", which is indistinguishable from
-    any other scraper and is exactly what rate-limit rules key on. Being nameable
-    means an operator seeing unfamiliar traffic can look the project up, or
-    allowlist it, rather than blanket-blocking an anonymous client. ISOx samples
-    every mirror on every run, so it owes them that much.
+    ISOx samples every mirror on every run, so it owes them that much.
     """
     headers = {"User-Agent": USER_AGENT}
     if extra:
@@ -105,7 +92,6 @@ class ISOxError(Exception):
 
 
 def server_fingerprint(response):
-    # Whatever the server gives to identify the version of the file given
     return response.headers.get("ETag") or response.headers.get("Last-Modified")
 
 
@@ -122,9 +108,6 @@ def read_meta(meta_path):
         stored = json.loads(raw)
     except ValueError:
         stored = None
-    # Pre-3.0 .meta files held a bare fingerprint. An ETag is a quoted string, so
-    # json.loads() parses one happily: anything that isn't a dict is the old format,
-    # and its raw text is the fingerprint.
     if not isinstance(stored, dict):
         return {"url": None, "fingerprint": raw}
     return {"url": stored.get("url"), "fingerprint": stored.get("fingerprint")}
@@ -150,12 +133,7 @@ def discard_part(part_path, meta_path):
 
 def part_is_stale(part_path, meta_path, url, fingerprint):
     # Distros with a fixed filename reuse the same name for new ISOs every month.
-    # Appending June's bytes to July's files for example would corrupt the download.
     stored = read_meta(meta_path)
-    # A fingerprint only means anything against the mirror that issued it. ETags are
-    # per-server (nginx derives them from mtime+size, which differs per mirror), and
-    # every run re-races the mirrors, so comparing one mirror's fingerprint against
-    # another's would throw away a perfectly good .part whenever the race changes winner.
     if fingerprint is not None and stored is not None and stored["url"] == url:
         return stored["fingerprint"] != fingerprint
     # No fingerprint we can trust for this mirror, so age is the fallback estimate
@@ -210,9 +188,6 @@ def validate_distro_config(name, distro_info):
         )
     if "iso_filename" not in distro_info and "iso_filename_contains" not in distro_info:
         raise ISOxError(f"'{name}' needs either iso_filename or iso_filename_contains.")
-    # Rejecting a bad algo here costs one function call. Letting it reach
-    # verify_checksum costs a full multi-gigabyte download first, and then
-    # quarantines the perfectly good ISO it just fetched.
     try:
         hashlib.new(distro_info["hash_algo"])
     except (ValueError, TypeError) as e:
@@ -220,8 +195,6 @@ def validate_distro_config(name, distro_info):
             f"'{name}' uses a hash_algo Python doesn't support: "
             f"{distro_info['hash_algo']!r}"
         ) from e
-    # A "single"-format checksum file is a bare hash with no filename in it,
-    # so there is nothing for the scan to match against.
     if (
         "iso_filename" not in distro_info
         and distro_info.get("discovery_method", "checksum_scan") == "checksum_scan"
@@ -231,8 +204,6 @@ def validate_distro_config(name, distro_info):
             f"'{name}' can't discover a filename by scanning a 'single'-format "
             f"checksum file, which lists no filenames."
         )
-    # The checksum is the only trust anchor (no GPG), so a plain-HTTP URL
-    # anywhere in the chain would let a MITM serve a matched ISO + hash.
     urls_needing_https = list(distro_info["mirrors"])
     urls_needing_https += version_discovery_urls(distro_info)
     if "checksum_base" in distro_info:
@@ -243,7 +214,6 @@ def validate_distro_config(name, distro_info):
 
 
 def resolve_iso_filename(name, distro_info, sources, checksum_filename):
-    # There are three ways to get ISO filenames, picked based on distros.json config fields
     # 1. "iso_filename" -> static and doesn't change, like Arch
     # 2. "iso_filename_contains" -> scan a shared checksum file
     # 3. "iso_filename_contains" + html_scan -> scan directory listing when no shared checksum exists
@@ -254,8 +224,7 @@ def resolve_iso_filename(name, distro_info, sources, checksum_filename):
     excluded_substrings = excluded_substrings_for(distro_info)
     use_html_scan = distro_info.get("discovery_method", "checksum_scan") == "html_scan"
 
-    # We don't want one dead source to kill discovery if the others are good.
-    # Unreachable and no-match are treated the same, so we try sources in order until one works.
+    # We don't want one dead source to kill discovery if the others are good
     for source in sources:
         try:
             if use_html_scan:
@@ -271,21 +240,12 @@ def resolve_iso_filename(name, distro_info, sources, checksum_filename):
                 distro_info["hash_algo"],
                 None,
             )
-            # A checksum file covers every artifact of a release, not just ISOs.
-            # Kali's SHA256SUMS pairs each .iso with a .iso.torrent matching the
-            # same substrings, so without the extension filter a 100KB torrent
-            # can be downloaded, verified against its own hash, and reported good.
             candidates = [
                 f
                 for f in peek_lookup
                 if f.endswith(".iso")
                 and filename_matches(f, required_substrings, excluded_substrings)
             ]
-            # Unlike a directory listing, a checksum file describes a single release,
-            # so more than one match means the config is ambiguous rather than that
-            # there are several versions to choose between. Guessing here is how you
-            # ship debian-mac to someone who asked for debian, and it would verify
-            # cleanly against its own published hash. Fail loudly instead.
             if len(candidates) > 1:
                 raise ISOxError(
                     f"'{name}' matched {len(candidates)} ISOs in the checksum file at "
@@ -322,7 +282,6 @@ def resolve_checksum_filename(name, distro_info, base, checksum_filename, iso_fi
 
 
 def parse_checksum_file(text, checksum_format, hash_algo, iso_filename):
-    # Some distributions publish their checksums in various ways. This handles that.
     # "single" - file is the hash
     # "bsd" - things like Fedora use this
     # "multi" - Default, i.e. <hash> <filename> type format
@@ -379,9 +338,9 @@ def download_file(url, destination_path):
 
         if existing > 0 and response.status_code != 206:
             existing = 0  # Server ignored Range header, so start over
-            mode = "wb"  # Starts file from 0
+            mode = "wb"  
         else:
-            mode = "ab"  # Appends bytes to end
+            mode = "ab"  
 
         if existing > 0:
             print(f"Resuming from {existing / 1_000_000:.1f} MB ...")
@@ -414,8 +373,8 @@ def download_file(url, destination_path):
                         end="",
                         flush=True,
                     )
-    # RequestException subclasses OSError, so it must be caught first.
-    # or, the handler below would eat every network failure and say it's a disk error.
+    # RequestException subclasses OSError, so it must be caught first
+    # Otherwise the handler below would eat every network failure and say it's a disk error
     except requests.exceptions.RequestException as e:
         print()
         raise ISOxError(
@@ -428,8 +387,7 @@ def download_file(url, destination_path):
         ) from e
 
     print()
-    # Promoting a short read would turn a resumable .part into a .FAILED ISO:
-    # the bytes on disk are fine, there are just fewer of them than promised.
+ 
     if total is not None and downloaded != total:
         raise ISOxError(
             f"download ended early ({downloaded} of {total} bytes). "
@@ -440,9 +398,7 @@ def download_file(url, destination_path):
 
 
 def natural_sort_key(name):
-    # "foo-10.iso" -> ["foo-", 10, ".iso"], so 10 outranks 9 instead of losing
-    # to it lexicographically. re.split with a capturing group alternates
-    # text/digits, so two keys never compare int against str at the same index.
+    # "foo-10.iso" -> ["foo-", 10, ".iso"], so 10 outranks 9 instead of losing to it
     return [
         int(part) if part.isdecimal() else part for part in re.split(r"(\d+)", name)
     ]
@@ -492,9 +448,7 @@ def find_latest_version_folder(directory_url, min_parts=1):
 
 
 def find_latest_lts_folder(directory_url):
-    # Ubuntu LTS releases are always "YY.04" with YY even; this also
-    # skips dated snapshot folders like "24.04.2" in favor of the
-    # "24.04" alias, which Canonical keeps updated with the latest ISO.
+    # Ubuntu LTS releases are always "YY.04" with YY even
     response = requests.get(directory_url, timeout=10, headers=request_headers())
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
@@ -518,9 +472,6 @@ def find_latest_lts_folder(directory_url):
 
 
 def find_latest_version(name, discovery_urls, finder):
-    # Version discovery decides which directory everything else is fetched from,
-    # so a single unreachable host here used to fail the whole run even when every
-    # configured mirror was healthy. Same fallback shape as ISO discovery.
     for url in discovery_urls:
         try:
             return finder(url)
@@ -533,7 +484,6 @@ def find_latest_version(name, discovery_urls, finder):
 
 
 def is_unsafe_filename(filename):
-    # Reject filenames that could use escape characters
     return "/" in filename or "\\" in filename or ".." in filename
 
 
@@ -558,8 +508,6 @@ def verify_checksum(filepath, filename, hash_lookup, algo):
         raise ValueError(
             f"No checksum entry found for '{filename}' in the checksum file."
         )
-    # hexdigest() is always lowercase but published hashes aren't consistently so,
-    # and a case difference here would be reported as "may be tampered with".
     expected_hash = hash_lookup[filename].strip().lower()
     actual_hash = compute_hash(filepath, algo).lower()
     return hmac.compare_digest(actual_hash.encode(), expected_hash.encode())
@@ -576,9 +524,6 @@ def check_mirror_throughput(url, sample_bytes=2_000_000):
     try:
         headers = request_headers({"Range": f"bytes=0-{sample_bytes - 1}"})
         start = time.time()
-        # Closed explicitly: we stop reading at the sample size, so the connection
-        # would otherwise sit unreleased until GC, and a mirror that ignored Range
-        # would go on pushing the whole ISO into the socket meanwhile.
         with requests.get(url, headers=headers, stream=True, timeout=10) as response:
             response.raise_for_status()
 
@@ -650,7 +595,7 @@ def run():
         print(f"{len(distros)} distros available:")
         for name in distros:
             print(f"  {name}")
-        # Which config won matters once there's more than one place it can live.
+        # Which config won matters once there's more than one place it can live
         print(f"\nconfig: {DISTROS_PATH}")
         return
 
@@ -668,7 +613,6 @@ def run():
     os.makedirs(args.output_dir, exist_ok=True)
 
     # For distros that have no stable/latest alias, the current version needs to be discovered before continuing
-    # This runs before ISO discovery, since HTML grabbing needs a complete path to get .iso
     if distro_info.get("version_directory", False):
         finder = (
             find_latest_lts_folder
@@ -683,16 +627,12 @@ def run():
             checksum_base = checksum_base.format(version=latest_version)
         print(f"Discovered latest version: {latest_version}")
 
-    # When a canonical host is configured it also decides the filename. Taking the
-    # name from one host and the hash from another quarantines a perfectly good ISO
-    # every time a mirror lags a release behind.
     discovery_sources = ([checksum_base] if checksum_base else []) + mirrors
 
     iso_filename = resolve_iso_filename(
         args.distro, distro_info, discovery_sources, checksum_filename
     )
 
-    # If a filename looks suspicious, (../evil.iso type), reject it
     if is_unsafe_filename(iso_filename):
         raise ISOxError(f"discovered filename looks unsafe: '{iso_filename}'")
 
@@ -700,10 +640,6 @@ def run():
     best_iso_url = find_fastest_mirror_by_throughput(iso_urls)
     base = best_iso_url.rsplit("/", 1)[0]
 
-    # A mirror that serves a modified ISO can serve a hash that matches it just as
-    # easily, which makes verification against that same mirror worth very little.
-    # Pulling the checksum from the distro's own host means one rogue mirror can't
-    # supply both halves.
     checksum_source = checksum_base.rstrip("/") if checksum_base else base
 
     checksum_filename_resolved = resolve_checksum_filename(
@@ -737,7 +673,6 @@ def run():
         print(f"Verifying against the checksum published at {checksum_source} ...")
     download_file(best_iso_url, destination_path)
 
-    # Stays a local handler since it has the purpose of quarantining, and is not needed elsewhere.
     try:
         if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
             print("Checksum matches, file is good.")
@@ -760,7 +695,6 @@ def main():
     except ISOxError as e:
         print(f"Error: {e}")
         sys.exit(1)
-    # Safety Measures: for calls that didn't get a clean error message.
     except requests.exceptions.RequestException as e:
         print(f"Error: network request failed ({e}). Try running the tool again.")
         sys.exit(1)
