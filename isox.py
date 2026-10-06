@@ -338,9 +338,9 @@ def download_file(url, destination_path):
 
         if existing > 0 and response.status_code != 206:
             existing = 0  # Server ignored Range header, so start over
-            mode = "wb"  
+            mode = "wb"
         else:
-            mode = "ab"  
+            mode = "ab"
 
         if existing > 0:
             print(f"Resuming from {existing / 1_000_000:.1f} MB ...")
@@ -387,7 +387,7 @@ def download_file(url, destination_path):
         ) from e
 
     print()
- 
+
     if total is not None and downloaded != total:
         raise ISOxError(
             f"download ended early ({downloaded} of {total} bytes). "
