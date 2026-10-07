@@ -47,7 +47,7 @@ python isox.py --list
 
 Save somewhere other than `./ISOx_Downloads`:
 ```bash
-python isox.py arch --output-dir /mnt/usb
+python isox.py arch --output-dir /example/directory
 ```
 
 Download and verify a distro:
