@@ -7,7 +7,7 @@
 ![OS](https://img.shields.io/badge/platform-Linux-orange)
 ![CI](https://github.com/logjxn/ISOx/actions/workflows/ci.yml/badge.svg)
 
-A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest available source, and cryptographically verifies integrity against the checksum published by the distribution itself, so you never have to manually hunt down hashes or skip verification again.
+A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest source, and cryptographically verifies integrity against the checksum by the official host, so you never have to manually hunt down hashes or skip verification again.
 
 ```
 Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
@@ -83,12 +83,12 @@ Checksum matches, file is good.
 
 ## Features
 
-- **Config-driven distro support** - supported distros are defined in `distros.json`, not hardcoded, meaning adding a new distro is a JSON entry, not a code change.
+- **Config-driven distro support** - supported distros are defined in `distros.json`, meaning adding a new distro is a JSON entry, not a code change.
 - **Three ISO-discovery strategies** - covers distros that publish their ISOs in very different ways.
-- **Checksums from the distro, ISO from the fastest mirror** - a mirror serving a modified ISO could serve a matching hash just as easily, so the hash is fetched from the distribution's own host rather than from whichever mirror won the speed race.
-- **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered automatically by scanning a parent directory and numerically sorting version-like folder names, so outdated ISOs aren't retrieved.
+- **Checksums from the distro, ISO from the fastest mirror** - a mirror serving a modified ISO could serve a matching hash just as easily, so the hash is fetched from the distribution's own host.
+- **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered by scanning a parent directory and numerically sorting version-like folder names, so outdated ISOs aren't retrieved.
 - **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
-- **Resumable downloads** - interrupted transfers are written to a `.part` file and continued via an HTTP `Range` request on the next run, so you don't have to restart if something goes wrong. .part files that are stale are also checked before resuming, and are scrapped if they're out of date.
+- **Resumable downloads** - interrupted transfers are written to a `.part` file and continued via an HTTP `Range` request on the next run, so you don't have to restart if something goes wrong. (.part files that are stale are also checked before resuming, and are scrapped if they're out of date)
 - **Live progress bar** - shows percentage and real-time throughput, and degrades to a plain byte counter if the server won't report a total size.
 - **Streamed downloads** - files are downloaded in large chunks (`requests` with `stream=True`), so multi-GB ISOs don't hog RAM.
 - **Failure quarantine** - an ISO that fails verification is renamed, so it can't be mistaken for a verified file.
@@ -142,7 +142,7 @@ If the included mirrors are not ideal for your location, you can easily update t
 | `mirrors` | **Required.** Where the ISO may be downloaded from. Raced on every run. |
 | `checksum_filename` | **Required.** Literal name, or a `{iso_filename}.sha256` template. |
 | `hash_algo` | **Required.** Anything `hashlib` supports. Validated before any download starts. |
-| `checksum_base` | Host to fetch the checksum from, instead of the winning mirror. Should be the distro's own server. Also decides the ISO filename, so name and hash always agree. |
+| `checksum_base` | Host to fetch the checksum from, ideally the distro's own server. Also decides the ISO filename, so name and hash always agree. |
 | `iso_filename` | For distros whose filename never changes. |
 | `iso_filename_contains` | Substrings every candidate filename must contain. |
 | `iso_filename_excludes` | Substrings that disqualify a filename. Use this when a distro publishes images your substrings can't tell apart, like Debian's `-edu-` and `-mac-` images. |
@@ -246,8 +246,8 @@ Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re
     ruff check .
     bandit isox.py
 
-The suite is simulated (no network). `tests/test_live_mirrors.py` is the
-one exception: it resolves every distro in `distros.json` against the real mirrors
+The suite is simulated (no network), except `tests/test_live_mirrors.py`, as it resolves 
+every distro in `distros.json` against the real mirrors
 and checks if the filename it lands on has a checksum, without downloading
 any ISO. It's deselected by default and takes about a minute:
 
