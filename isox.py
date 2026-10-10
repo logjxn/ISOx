@@ -28,18 +28,6 @@ def user_config_dir():
 
 
 def distros_path_candidates():
-    """Every place distros.json may live, most specific first.
-
-    ISOX_DISTROS short-circuits the search so a typo'd path is reported rather
-    than silently falling back to the bundled config.
-
-    The install locations are plural because a wheel's data files land wherever
-    the *install scheme* puts them, and the scheme varies by how pip was invoked.
-    A venv or pipx install has sys.prefix and the data path coincide, but
-    `pip install --user` puts them under the user base, and Debian's patched
-    system Python defaults to /usr/local while sys.prefix stays /usr. Checking
-    only sys.prefix means the tool cannot find its own config on either.
-    """
     override = os.environ.get("ISOX_DISTROS")
     if override:
         return [override]
