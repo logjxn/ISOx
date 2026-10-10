@@ -250,7 +250,6 @@
     },
     "zorin": {
         "mirrors": [
-            "https://mirrors.edge.kernel.org/zorinos-isos/{version}/",
             "https://plug-mirror.rcac.purdue.edu/zorin-iso/{version}/",
             "https://mirror.clarkson.edu/zorinos/isos/{version}/"
         ],
