@@ -90,9 +90,9 @@ Checksum matches, file is good.
 - **Config-driven distro support** - supported distros are defined in `distros.json`, meaning adding a new distro is a JSON entry, not a code change.
 - **Three ISO-discovery strategies** - covers distros that publish their ISOs in very different ways.
 - **Checksums from the distro, ISO from the fastest mirror** - a mirror serving a modified ISO could serve a matching hash just as easily, so the hash is fetched from the distribution's own host.
-- **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered by scanning a parent directory and numerically sorting version-like folder names, so outdated ISOs aren't retrieved.
+- **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered by scanning a parent directory and sorting versions (folder names).
 - **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
-- **Resumable downloads** - interrupted transfers are written to a `.part` file and continued via an HTTP `Range` request on the next run, so you don't have to restart if something goes wrong. (.part files that are stale are also checked before resuming, and are scrapped if they're out of date)
+- **Resumable downloads** - interrupted transfers are written to a `.part` file and continued via an HTTP `Range` request on the next run. (.part files that are stale are also checked before resuming, and are scrapped if they're out of date)
 - **Live progress bar** - shows percentage and real-time throughput, and degrades to a plain byte counter if the server won't report a total size.
 - **Streamed downloads** - files are downloaded in large chunks (`requests` with `stream=True`), so multi-GB ISOs don't hog RAM.
 - **Failure quarantine** - an ISO that fails verification is renamed, so it can't be mistaken for a verified file.
@@ -224,10 +224,8 @@ renames the ISO to `<filename>.FAILED`; a missing entry renames it to
 ## What verification does and doesn't cover
 
 **Covered.** Corruption in transit, truncated transfers, a bad disk, a botched resume, and
-a mirror serving a modified ISO. That last one is why the checksum is fetched from
-`checksum_base` (own host) rather than from the mirror that served
-the bytes. A mirror that can hand you a tampered ISO can hand you a hash matching it just
-as easily. Splitting the two means one rogue mirror can't supply both halves.
+a mirror serving a modified ISO. Modified ISOs are handled by splitting up the ISO and
+checksum across two mirrors.
 
 GPG is not included as it would require maintaining trusted public keys (or fingerprints)
 for every supported distribution, along with key management and signature validation
