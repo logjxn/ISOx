@@ -100,21 +100,10 @@ You don't have to configure it yourself. Open a
 you know about, and that's plenty to work from. I love working on this, so I'll
 get it added. :)
 
-## Distros that *don't* work
-
-These are just as useful to report, and I'd rather have the writeup than not.
-Several distros have been evaluated and excluded, at least for now:
-interactive download pages with no scrapable listing, checksums that don't match
-what's actually published, directory listings behind a 403, no stable index to scrape.
-
-If you dig into one and hit a wall, open an issue describing what you found.
-Knowing a distro *can't* currently be supported, and why, saves the next
-person the same afternoon. 
-
 ## Acceptance criteria for a new distro
 
 The default test suite is hermetic, it stubs the network, so it can't tell you
-whether a real mirror still has the layout you configured. Two of the three
+whether a real mirror has the layout you configured. Two of the three
 checks below cover that, and they're the bar for merging:
 
 1. `pytest -m live -k <distro>` passes. This resolves the version folder, the
@@ -127,7 +116,7 @@ checks below cover that, and they're the bar for merging:
 
 Please verify these two to satisfy PR requirements. A config that doesn't boot
 or run isn't exactly the criteria. Again, if you are unable to test, just
-specify in the PR and I'll do the testing on my end and with VMs. I don't mind.
+specify in the PR and I'll do the testing on my end with VMs. I don't mind.
 
 ## Development setup
 
