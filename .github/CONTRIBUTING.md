@@ -12,8 +12,7 @@ nothing else.
 Every entry needs three fields:
 
 - `mirrors` - a list of directory URLs (not direct links to the ISO). HTTPS only.
-  Two or three is a good number; ISOx samples each one and downloads
-  from whichever is fastest. Some distros have only one based on vendor suggestion. (openSUSE)
+  Two or three is a good number. Some distros have only one based on vendor suggestion.
 - `checksum_filename` - the name of the file the distro publishes its hashes
   in. Supports a `{iso_filename}` placeholder for distros that publish one
   checksum file per ISO.
