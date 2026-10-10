@@ -15,7 +15,7 @@ Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
 ```
 
 The ISO comes from whichever mirror is fastest right now. The checksum comes from the
-distribution's own server, so the mirror that hands you the bytes is not also giving the checksum. 
+distribution's own server, so the mirror that hands you the bytes is not also giving the checksum.
 See [What verification does and doesn't cover](#what-verification-does-and-doesnt-cover).
 
 ## Why
@@ -68,6 +68,10 @@ python isox.py alma
 python isox.py cachyos
 python isox.py mageia
 python isox.py openmandriva
+python isox.py proxmox
+python isox.py ubuntu-server
+python isox.py zorin
+python isox.py centos-stream
 ```
 
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
@@ -96,7 +100,7 @@ Checksum matches, file is good.
 
 ## How it works
 
-This section covers what you need to configure and run ISOx. 
+This section covers what you need to configure and run ISOx.
 
 ### Config format (`distros.json`)
 
@@ -104,7 +108,7 @@ Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at mini
 
 Fedora is shown as a more complex example on purpose. It demonstrates the options available when a distro needs version discovery, mirror scanning, or custom checksum handling. Most distributions only require the basic fields plus one or two optional ones.
 
-If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro's official mirror list and replace the URL in distros.json. The tool will then handle the rest. Mirror, checksum and version-discovery URLs must be HTTPS. 
+If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro's official mirror list and replace the URL in distros.json. The tool will then handle the rest. Mirror, checksum and version-discovery URLs must be HTTPS.
 
 ```json
 {
@@ -246,7 +250,7 @@ Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re
     ruff check .
     bandit isox.py
 
-The suite is simulated (no network), except `tests/test_live_mirrors.py`, as it resolves 
+The suite is simulated (no network), except `tests/test_live_mirrors.py`, as it resolves
 every distro in `distros.json` against the real mirrors
 and checks if the filename it lands on has a checksum, without downloading
 any ISO. It's deselected by default and takes about a minute:

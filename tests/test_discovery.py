@@ -395,3 +395,25 @@ def test_version_discovery_raises_when_every_url_fails(monkeypatch):
             ["https://a.test/", "https://b.test/"],
             isox.find_latest_version_folder,
         )
+
+
+# --- suffix tests ----------------------------------------------------
+
+
+def test_version_suffix_picks_the_newest_stream(monkeypatch):
+    serve_html(monkeypatch, listing("../", "9-stream/", "10-stream/", "SIGs/"))
+    finder = isox.version_finder_for({"version_suffix": "-stream"})
+    assert finder("https://example.test/") == "10-stream"
+
+
+def test_version_suffix_ignores_folders_without_it(monkeypatch):
+    serve_html(monkeypatch, listing("24/", "9-stream/"))
+    finder = isox.version_finder_for({"version_suffix": "-stream"})
+    assert finder("https://example.test/") == "9-stream"
+
+
+def test_stream_folders_are_rejected_without_a_suffix(monkeypatch):
+    serve_html(monkeypatch, listing("../", "9-stream/", "10-stream/", "SIGs/"))
+    finder = isox.version_finder_for({})
+    with pytest.raises(ValueError, match="No version-numbered folders"):
+        finder("https://example.test/")

@@ -234,6 +234,11 @@ def test_shipped_iso_names_survive_the_default_excludes():
         "AlmaLinux-10.1-x86_64-minimal.iso",
         "cachyos-desktop-linux-260628.iso",
         "Mageia-10-x86_64.iso",
+        "OpenMandrivaLx.rolling-snapshot.20260927.4767-plasma6x11.x86_64.iso",
+        "proxmox-ve_9.2-1.iso",
+        "ubuntu-26.04.1-live-server-amd64.iso",
+        "Zorin-OS-18.1-Core-64-bit.iso",
+        "CentOS-Stream-10-20261006.0-x86_64-boot.iso",
     ):
         assert isox.filename_matches(name, [], isox.DEFAULT_FILENAME_EXCLUDES), name
 

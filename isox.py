@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.3.1"
+__version__ = "3.4.0"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -426,7 +426,7 @@ def discover_via_html_listing(
     return max(matches, key=natural_sort_key)
 
 
-def find_latest_version_folder(directory_url, min_parts=1):
+def find_latest_version_folder(directory_url, min_parts=1, suffix=""):
     response = requests.get(directory_url, timeout=10, headers=request_headers())
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
@@ -436,7 +436,12 @@ def find_latest_version_folder(directory_url, min_parts=1):
     version_folders = []
     for link in links:
         cleaned = link.rstrip("/")
-        parts = cleaned.split(".")
+        number = cleaned
+        if suffix:
+            if not cleaned.endswith(suffix):
+                continue
+            number = cleaned[: -len(suffix)]
+        parts = number.split(".")
         if all(part.isdigit() for part in parts) and len(parts) >= min_parts:
             version_folders.append((tuple(int(p) for p in parts), cleaned))
 
@@ -469,6 +474,13 @@ def find_latest_lts_folder(directory_url):
 
     lts_folders.sort()
     return lts_folders[-1][1]
+
+
+def version_finder_for(distro_info):
+    if distro_info.get("version_scheme") == "ubuntu_lts":
+        return find_latest_lts_folder
+    suffix = distro_info.get("version_suffix", "")
+    return lambda url: find_latest_version_folder(url, suffix=suffix)
 
 
 def find_latest_version(name, discovery_urls, finder):
@@ -614,11 +626,7 @@ def run():
 
     # For distros that have no stable/latest alias, the current version needs to be discovered before continuing
     if distro_info.get("version_directory", False):
-        finder = (
-            find_latest_lts_folder
-            if distro_info.get("version_scheme") == "ubuntu_lts"
-            else find_latest_version_folder
-        )
+        finder = version_finder_for(distro_info)
         latest_version = find_latest_version(
             args.distro, version_discovery_urls(distro_info), finder
         )

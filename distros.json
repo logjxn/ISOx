@@ -217,5 +217,65 @@
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["plasma6x11", "x86_64"]
+    },
+    "proxmox": {
+        "mirrors": [
+            "https://enterprise.proxmox.com/iso/",
+            "https://na.cdn.proxmox.com/iso/"
+        ],
+        "checksum_base": "https://enterprise.proxmox.com/iso/",
+        "checksum_filename": "SHA256SUMS",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["proxmox-ve_"],
+        "iso_filename_excludes": ["arm64"]
+    },
+    "ubuntu-server": {
+        "mirrors": [
+            "https://releases.ubuntu.com/{version}/",
+            "https://mirror.arizona.edu/ubuntu-releases/{version}/",
+            "https://ubuntu-releases.mirrorservice.org/releases/{version}/"
+        ],
+        "version_directory": true,
+        "version_discovery_url": [
+            "https://releases.ubuntu.com/",
+            "https://mirror.arizona.edu/ubuntu-releases/"
+        ],
+        "version_scheme": "ubuntu_lts",
+        "checksum_base": "https://releases.ubuntu.com/{version}/",
+        "checksum_filename": "SHA256SUMS",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["live-server", "amd64"]
+    },
+    "zorin": {
+        "mirrors": [
+            "https://mirrors.edge.kernel.org/zorinos-isos/{version}/",
+            "https://plug-mirror.rcac.purdue.edu/zorin-iso/{version}/",
+            "https://mirror.clarkson.edu/zorinos/isos/{version}/"
+        ],
+        "version_directory": true,
+        "version_discovery_url": [
+            "https://mirrors.edge.kernel.org/zorinos-isos/",
+            "https://mirror.clarkson.edu/zorinos/isos/"
+        ],
+        "checksum_base": "https://mirrors.edge.kernel.org/zorinos-isos/{version}/",
+        "checksum_filename": "SHA256SUMS.txt",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["Core", "64-bit"],
+        "iso_filename_excludes": ["Beta"]
+    },
+    "centos-stream": {
+        "mirrors": ["https://mirror.stream.centos.org/{version}/BaseOS/x86_64/iso/"],
+        "version_directory": true,
+        "version_discovery_url": "https://mirror.stream.centos.org/",
+        "version_suffix": "-stream",
+        "checksum_base": "https://mirror.stream.centos.org/{version}/BaseOS/x86_64/iso/",
+        "checksum_filename": "SHA256SUM",
+        "checksum_format": "bsd",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["x86_64", "boot"],
+        "iso_filename_excludes": ["latest"]
     }
 }

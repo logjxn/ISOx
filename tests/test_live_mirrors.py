@@ -1,18 +1,3 @@
-"""Checks every distros.json entry against the real mirrors.
-
-Deselected by default, because the rest of the suite is hermetic and this one
-needs the network and takes about a minute:
-
-    pytest -m live            # just these
-    pytest -m live -s         # with the resolved filename and hash printed
-    pytest -m live -k rocky   # one distro
-
-This is the check the hermetic tests structurally cannot do: whether a mirror
-still has the layout the config claims. It runs everything a real download does
-except the transfer itself, so a pass means `python isox.py <distro>` would
-fetch the ISO and print "Checksum matches, file is good."
-"""
-
 import json
 
 import os
@@ -41,11 +26,7 @@ def resolve_everything_but_the_download(name, info):
     version = None
 
     if info.get("version_directory"):
-        finder = (
-            isox.find_latest_lts_folder
-            if info.get("version_scheme") == "ubuntu_lts"
-            else isox.find_latest_version_folder
-        )
+        finder = isox.version_finder_for(info)
         version = isox.find_latest_version(
             name, isox.version_discovery_urls(info), finder
         )
