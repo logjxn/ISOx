@@ -89,7 +89,6 @@ Checksum matches, file is good.
 
 - **Config-driven distro support** - supported distros are defined in `distros.json`, meaning adding a new distro is a JSON entry, not a code change.
 - **Three ISO-discovery strategies** - covers distros that publish their ISOs in very different ways.
-- **Checksums from the distro, ISO from the fastest mirror** - a mirror serving a modified ISO could serve a matching hash just as easily, so the hash is fetched from the distribution's own host.
 - **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered by scanning a parent directory and sorting versions (folder names).
 - **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
 - **Resumable downloads** - interrupted transfers are written to a `.part` file and continued via an HTTP `Range` request on the next run. (.part files that are stale are also checked before resuming, and are scrapped if they're out of date)
@@ -104,9 +103,7 @@ This section covers what you need to configure and run ISOx.
 
 ### Config format (`distros.json`)
 
-Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest cases such as Arch.
-
-Fedora is shown as a more complex example on purpose. It demonstrates the options available when a distro needs version discovery, mirror scanning, or custom checksum handling. Most distributions only require the basic fields plus one or two optional ones.
+Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest cases.
 
 If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro's official mirror list and replace the URL in distros.json. The tool will then handle the rest. Mirror, checksum and version-discovery URLs must be HTTPS.
 
@@ -156,6 +153,7 @@ If the included mirrors are not ideal for your location, you can easily update t
 | `version_directory` | `true` when the current version has to be discovered first. |
 | `version_discovery_url` | One URL or a list of them, tried in order. |
 | `version_scheme` | `ubuntu_lts` to select only LTS releases. |
+| `version_suffix` | Suffix to strip from version folder names before sorting, i.e. `-stream` for CentOS's `10-stream`. |
 
 #### Where `distros.json` is loaded from
 
@@ -183,8 +181,8 @@ cp "$(isox --list | sed -n 's/^config: //p')" ~/.config/isox/distros.json
 ### Version-folder discovery
 
 For distros with no stable "latest" URL alias, `"version_directory": true` scrapes the
-parent directory first, sorts version-like folder names numerically, and splices the newest
-into every `{version}` placeholder before any discovery happens.
+parent directory first, sorts version folder names numerically, and splices the newest
+into every `{version}` placeholder.
 
 `version_discovery_url` takes a list as well as a single URL, tried in order.
 `version_scheme: "ubuntu_lts"` narrows this to even-year `.04` folders, so
@@ -202,7 +200,7 @@ Three published formats are normalized into the same `{filename: hash}` lookup:
 
 Each mirror is sampled with a ranged GET pulling the first ~2MB of the actual ISO,
 and real throughput is measured over that sample. Fastest wins. Mirrors that time out or
-error are skipped. The checksum is fetched separately, from `checksum_base`.
+error are skipped. 
 
 ### Resumable downloads
 
@@ -210,16 +208,12 @@ Downloads are written to `<filename>.part` and only renamed to the final name on
 transfer completes, so a partial can't be mistaken for a finished file. On the next run
 the `.part` size becomes the offset in a `Range: bytes=N-` request.
 
-Four things can go wrong with a resume. A partial larger than the file on the server, a
-partial from an older release, a different mirror winning the race, and a server that
-ignores `Range` entirely. Each is handled.
+The tool will also handle size mismatches and stale part files.
 
 ### Checksum verification
 
-The checksum file is fetched new on every run, from `checksum_base` rather than from the
-mirror that served the ISO, and compared with `hmac.compare_digest`. A hash mismatch
-renames the ISO to `<filename>.FAILED`; a missing entry renames it to
-`<filename>.UNVERIFIED`.
+The checksum file is fetched new on every run, from `checksum_base` and compared with `hmac.compare_digest`. A hash mismatch
+renames the ISO to `<filename>.FAILED`; a missing entry renames it to '<filename>.UNVERIFIED`.
 
 ## What verification does and doesn't cover
 
@@ -249,7 +243,7 @@ Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re
     bandit isox.py
 
 The suite is simulated (no network), except `tests/test_live_mirrors.py`, as it resolves
-every distro in `distros.json` against the real mirrors
+every distro in `distros.json` against real mirrors
 and checks if the filename it lands on has a checksum, without downloading
 any ISO. It's deselected by default and takes about a minute:
 
