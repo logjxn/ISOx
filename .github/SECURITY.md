@@ -30,10 +30,10 @@ Please report privately rather than opening a public issue:
 **[Report a vulnerability](https://github.com/logjxn/ISOx/security/advisories/new)**
 
 Useful things to include: what you did, what happened, and the distro you ran
-if it's specific to one. 
+if it's specific to one.
 
 I'll acknowledge within a week. ISOx is maintained by me in my spare
-time, so I'd rather promise a week to give some lee-way.
+time, so I'd rather promise a week to give some leeway.
 
 ## What counts
 

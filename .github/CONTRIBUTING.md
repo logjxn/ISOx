@@ -57,10 +57,11 @@ To solve this, you can exclude candidates.
 If the distro has no permanent "latest" URL and instead puts ISOs in
 version-numbered directories, set `"version_directory": true` and give a
 `version_discovery_url` pointing at the parent directory. Put `{version}` in
-your mirror URLs where the folder name goes, and ISOx will scrape the parent,
-sort the versions numerically, and place the newest one in.
+your mirror URLs where the folder name goes, and ISOx will scrape the newest.
 
 `version_discovery_url` also takes a list, tried in order.
+
+If the folders aren’t plain numbers, `version_suffix` strips a suffix before sorting, and `version_scheme`: "ubuntu_lts" keeps only Ubuntu LTS releases.
 
 ### Checksum format
 
@@ -113,8 +114,7 @@ checks below cover that, and they're the bar for merging:
    `Checksum matches, file is good.`
 3. The resulting ISO actually boots.
 
-Please verify these two to satisfy PR requirements. A config that doesn't boot
-or run isn't exactly the criteria. Again, if you are unable to test, just
+Please verify these three to satisfy PR requirements. Again, if you are unable to test, just
 specify in the PR and I'll do the testing on my end with VMs. I don't mind.
 
 ## Development setup
@@ -128,7 +128,9 @@ pytest -m live -s   # same, printing the filename and hash it resolved
 
 Run `black .` and `ruff check .` before committing. CI runs both and will fail on
 formatting alone, which is a frustrating way to get a red X. CI does *not* run the
-live tests, since a mirror having a bad afternoon isn't a reason to fail a PR.
+live tests, since a mirror being down momentarily isn't a reason to fail a PR.
+
+CI runs a live mirror test weekly anyways.
 
 ## Bugs and feature requests
 
