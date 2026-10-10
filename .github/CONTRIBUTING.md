@@ -3,9 +3,9 @@
 Thanks for taking a look. ISOx has a deliberately small surface, and the most
 useful contributions are the most straightforward.
 
-Adding a distro is 99% of the time a config change. Of the distros ISOx supports, only a couple needed code changes, which were
-Ubuntu and Fedora. Every other one, such as Mint and Garuda, was an entry in `distros.json` and
-nothing else, thanks to the foundation Fedora built.
+Adding a distro is 99% of the time a config change. Of the distros ISOx supports, only a couple needed code changes.
+Every other one was an entry in `distros.json` and
+nothing else.
 
 ## Adding a distro
 
@@ -20,7 +20,7 @@ Every entry needs three fields:
 - `hash_algo` - usually `sha256`. Anything `hashlib` supports will work, and it's
   checked at startup rather than after the download.
 
-One more I would set:
+One more I recommend setting:
 
 - `checksum_base` - the directory URL on the **distro's own server** to fetch the
   checksum from. This is what stops a rogue mirror supplying the ISO and checksum. Usually this is the
@@ -46,15 +46,12 @@ three match `["netinst", "amd64"]`. Kali pairs every `.iso` with a `.iso.torrent
 matches the same substrings. A wrong pick verifies cleanly, because the thing you
 downloaded has a valid published hash of its own.
 
-The tool doesn't guess. Non-`.iso` files are dropped, and if more than one candidate
-survives in a checksum file the run stops and names them. 
+To solve this, you can exclude candidates.
 
 ```json
 "iso_filename_contains": ["netinst", "amd64"],
 "iso_filename_excludes": ["-edu-", "-mac-"]
 ```
-
-Release candidates (`_rc1`, `-beta`, `-alpha`) are filtered out for you everywhere.
 
 ### Version folders
 
@@ -62,14 +59,9 @@ If the distro has no permanent "latest" URL and instead puts ISOs in
 version-numbered directories, set `"version_directory": true` and give a
 `version_discovery_url` pointing at the parent directory. Put `{version}` in
 your mirror URLs where the folder name goes, and ISOx will scrape the parent,
-sort the version-like folder names numerically, and place the newest one in.
+sort the versions numerically, and place the newest one in.
 
 `version_discovery_url` also takes a list, tried in order.
-
-Ubuntu is the one distro that needed more than this, because "newest folder"
-and "newest LTS" aren't the same thing. That's what `version_scheme` exists
-for. If a distro you're adding needs similar special handling, mention in
-the PR, it's a valid reason to add code.
 
 ### Checksum format
 
