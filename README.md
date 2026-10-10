@@ -7,16 +7,12 @@
 ![OS](https://img.shields.io/badge/platform-Linux-orange)
 ![CI](https://github.com/logjxn/ISOx/actions/workflows/ci.yml/badge.svg)
 
-A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest source, and cryptographically verifies integrity against the checksum by the official host, so you never have to manually hunt down hashes or skip verification again.
+A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest source, and verifies the ISO against a checksum published by the distro's own host, never the mirror that served it ([what that does and doesn't cover](#what-verification-does-and-doesnt-cover)). No more hunting down hashes or skipping verification.
 
 ```
 Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
                                           (fastest mirror)  (distro's own host)
 ```
-
-The ISO comes from whichever mirror is fastest right now. The checksum comes from the
-distribution's own server, so the mirror that hands you the bytes is not also giving the checksum.
-See [What verification does and doesn't cover](#what-verification-does-and-doesnt-cover).
 
 ## Why
 
@@ -153,7 +149,7 @@ If the included mirrors are not ideal for your location, you can easily update t
 | `version_directory` | `true` when the current version has to be discovered first. |
 | `version_discovery_url` | One URL or a list of them, tried in order. |
 | `version_scheme` | `ubuntu_lts` to select only LTS releases. |
-| `version_suffix` | Suffix to strip from version folder names before sorting, i.e. `-stream` for CentOS's `10-stream`. |
+| `version_suffix` | Suffix to strip from version folder names before sorting, such as `-stream` for CentOS's `10-stream`. |
 
 #### Where `distros.json` is loaded from
 
@@ -213,13 +209,16 @@ The tool will also handle size mismatches and stale part files.
 ### Checksum verification
 
 The checksum file is fetched new on every run, from `checksum_base` and compared with `hmac.compare_digest`. A hash mismatch
-renames the ISO to `<filename>.FAILED`; a missing entry renames it to '<filename>.UNVERIFIED`.
+renames the ISO to `<filename>.FAILED`; a missing entry renames it to `<filename>.UNVERIFIED`.
 
 ## What verification does and doesn't cover
 
 **Covered.** Corruption in transit, truncated transfers, a bad disk, a botched resume, and
-a mirror serving a modified ISO. Modified ISOs are handled by splitting up the ISO and
-checksum across two mirrors.
+a mirror serving a modified ISO. Modified ISOs are handled by grabbing the checksum from
+the main distro host.
+
+**Not covered.** If the distro's own server is compromised, both the ISO and its checksum can be replaced together. 
+Only signature verification (GPG) catches that.
 
 GPG is not included as it would require maintaining trusted public keys (or fingerprints)
 for every supported distribution, along with key management and signature validation
