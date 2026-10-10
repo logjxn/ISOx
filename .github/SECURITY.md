@@ -21,8 +21,7 @@ This is a deliberate design decision, explained in the
 threat model requires verifying the origin of a release, follow the
 distribution's own GPG instructions.
 
-Related, and worth stating plainly: mirrors are selected by measured download
-speed, not by trust. All configured mirrors are HTTPS.
+All configured mirrors are HTTPS.
 
 ## Reporting a vulnerability
 
@@ -31,15 +30,10 @@ Please report privately rather than opening a public issue:
 **[Report a vulnerability](https://github.com/logjxn/ISOx/security/advisories/new)**
 
 Useful things to include: what you did, what happened, and the distro you ran
-if it's specific to one. A reproduction is ideal but not required.
+if it's specific to one. 
 
 I'll acknowledge within a week. ISOx is maintained by me in my spare
-time, so I'd rather promise a week and mean it than promise a day and miss it.
-
-## Supported versions
-
-Only the latest release is supported. ISOx is a single file with no release
-branches, so fixes ship in the next release rather than being backported.
+time, so I'd rather promise a week to give some lee-way.
 
 ## What counts
 
@@ -55,4 +49,3 @@ Reports that are bugs, and belong in a normal issue:
 
 - A distro's layout changed upstream and discovery broke
 - A mirror is down or slow
-- The absence of GPG verification, which is documented above
