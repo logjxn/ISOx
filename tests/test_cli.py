@@ -412,12 +412,18 @@ def ubuntu_get(listing):
     return fake_get
 
 
-def test_release_flag_selects_an_older_lts(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize(
+    "release, message",
+    [("24.04", None), ("24", "Resolved release 24 to 24.04")],
+)
+def test_release_flag_selects_an_older_lts(
+    tmp_path, monkeypatch, capsys, release, message
+):
     setup_repo(
         tmp_path,
         monkeypatch,
         config=UBUNTU_CONFIG,
-        argv=("isox.py", "ubuntu", "--release", "24.04"),
+        argv=("isox.py", "ubuntu", "--release", release),
     )
     monkeypatch.setattr(
         isox.requests, "get", ubuntu_get('<a href="26.04/">a</a><a href="24.04/">b</a>')
@@ -425,7 +431,12 @@ def test_release_flag_selects_an_older_lts(tmp_path, monkeypatch, capsys):
 
     isox.run()
 
-    assert "Resolved release 24.04 to 24.04" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "https://mirror.test/24.04/" in out
+    if message:
+        assert message in out
+    else:
+        assert "Resolved release" not in out
 
 
 def test_release_that_doesnt_exist_names_itself(tmp_path, monkeypatch, capsys):
@@ -486,6 +497,48 @@ FLAT_CONFIG = {
         "release_filename_prefix": "flat-ve_",
     }
 }
+
+
+HTML_FOLDER_CONFIG = {
+    "folder": {
+        "mirrors": ["https://mirror.test/{version}/"],
+        "version_directory": True,
+        "version_discovery_url": "https://mirror.test/",
+        "checksum_filename": "SHA256SUMS",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["folder"],
+    }
+}
+
+
+def test_release_flag_on_an_html_scan_folder_distro(tmp_path, monkeypatch, capsys):
+    # The release filter used to drop every filename when no
+    # release_filename_prefix was set, breaking --release on Ubuntu, Mint, Fedora...
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.rstrip("/") == "https://mirror.test":
+            return FakeResponse(text='<a href="9/">a</a><a href="10/">b</a>')
+        if url == "https://mirror.test/9/":
+            return FakeResponse(text='<a href="folder-9.2.iso">a</a>')
+        if url.endswith("SHA256SUMS"):
+            return FakeResponse(text=f"{ISO_SHA256}  folder-9.2.iso\n")
+        return FakeResponse(
+            200, {"Content-Length": str(len(ISO_BODY)), "ETag": '"v1"'}, ISO_BODY
+        )
+
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=HTML_FOLDER_CONFIG,
+        argv=("isox.py", "folder", "--release", "9"),
+    )
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    isox.run()
+
+    out = capsys.readouterr().out
+    assert "https://mirror.test/9/folder-9.2.iso" in out
+    assert "Checksum matches, file is good." in out
 
 
 def flat_get(listing):

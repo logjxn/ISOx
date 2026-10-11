@@ -475,11 +475,12 @@ def discover_via_html_listing(
         and filename_matches(link, required_substrings, excluded_substrings)
     ]
     # Flat directories like Proxmox's keep every release side by side
-    matches = [
-        m
-        for m in matches
-        if release_matches(filename_release(m, release_prefix), release)
-    ]
+    if release_prefix:
+        matches = [
+            m
+            for m in matches
+            if release_matches(filename_release(m, release_prefix), release)
+        ]
 
     if not matches:
         raise ValueError(
@@ -726,10 +727,10 @@ def run():
         mirrors = [m.format(version=latest_version) for m in mirrors]
         if checksum_base:
             checksum_base = checksum_base.format(version=latest_version)
-        if args.release is not None:
-            print(f"Resolved release {args.release} to {latest_version}")
-        else:
+        if args.release is None:
             print(f"Discovered latest version: {latest_version}")
+        elif args.release != latest_version:
+            print(f"Resolved release {args.release} to {latest_version}")
 
     discovery_sources = ([checksum_base] if checksum_base else []) + mirrors
 

@@ -519,3 +519,13 @@ def test_release_missing_from_a_flat_directory_raises(monkeypatch, release):
 )
 def test_filename_release_reads_the_version_after_the_prefix(filename, expected):
     assert isox.filename_release(filename, "proxmox-ve_") == expected
+
+
+def test_release_without_prefix_keeps_folder_filenames(monkeypatch):
+    # Folder distros pin the release via the folder, so filenames
+    # must not be filtered again when no release_filename_prefix is set
+    serve_html(monkeypatch, listing("ubuntu-24.04.3-live-server-amd64.iso"))
+    found = isox.discover_via_html_listing(
+        "https://example.test/", ["live-server", "amd64"], release="24.04"
+    )
+    assert found == "ubuntu-24.04.3-live-server-amd64.iso"
