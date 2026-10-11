@@ -474,3 +474,68 @@ def test_release_on_a_rolling_distro_is_refused(tmp_path, monkeypatch, capsys):
 
     assert excinfo.value.code == 1
     assert "rolling release" in capsys.readouterr().out
+
+
+FLAT_CONFIG = {
+    "flat": {
+        "mirrors": ["https://mirror.test/iso/"],
+        "checksum_filename": "SHA256SUMS",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["flat-ve_"],
+        "release_filename_prefix": "flat-ve_",
+    }
+}
+
+
+def flat_get(listing):
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url == "https://mirror.test/iso/":
+            return FakeResponse(text=listing)
+        if url.endswith("SHA256SUMS"):
+            return FakeResponse(text=f"{ISO_SHA256}  flat-ve_8.4-1.iso\n")
+        return FakeResponse(
+            200, {"Content-Length": str(len(ISO_BODY)), "ETag": '"v1"'}, ISO_BODY
+        )
+
+    return fake_get
+
+
+def test_release_flag_selects_from_a_flat_directory(tmp_path, monkeypatch, capsys):
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=FLAT_CONFIG,
+        argv=("isox.py", "flat", "--release", "8"),
+    )
+    monkeypatch.setattr(
+        isox.requests,
+        "get",
+        flat_get('<a href="flat-ve_9.2-1.iso">a</a><a href="flat-ve_8.4-1.iso">b</a>'),
+    )
+
+    isox.run()
+
+    out = capsys.readouterr().out
+    assert "Resolved release 8 to flat-ve_8.4-1.iso" in out
+    assert "Checksum matches, file is good." in out
+
+
+def test_release_missing_from_a_flat_directory_names_itself(
+    tmp_path, monkeypatch, capsys
+):
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=FLAT_CONFIG,
+        argv=("isox.py", "flat", "--release", "7"),
+    )
+    monkeypatch.setattr(
+        isox.requests, "get", flat_get('<a href="flat-ve_9.2-1.iso">a</a>')
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "couldn't find release 7 for 'flat'" in capsys.readouterr().out

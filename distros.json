@@ -236,7 +236,8 @@
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["proxmox-ve_"],
-        "iso_filename_excludes": ["arm64"]
+        "iso_filename_excludes": ["arm64"],
+        "release_filename_prefix": "proxmox-ve_"
     },
     "ubuntu-server": {
         "mirrors": [

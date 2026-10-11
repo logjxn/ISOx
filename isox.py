@@ -35,10 +35,29 @@ def release_arg(value):
     return value
 
 
+def filename_release(filename, prefix):
+    """'proxmox-ve_8.4-1.iso' with prefix 'proxmox-ve_' -> '8.4'."""
+    if not filename.startswith(prefix):
+        return None
+    found = RELEASE_PATTERN.match(filename, len(prefix))
+    return found.group(0) if found else None
+
+
+def release_matches(version_text, release):
+    if release is None:
+        return True
+    if version_text is None:
+        return False
+    wanted = release_parts(release)
+    return release_parts(version_text)[: len(wanted)] == wanted
+
+
 def check_release_supported(name, distro_info):
     if distro_info.get("rolling"):
         raise ISOxError(f"'{name}' is a rolling release and has no versions to select.")
-    if not distro_info.get("version_directory"):
+    if not distro_info.get("version_directory") and not distro_info.get(
+        "release_filename_prefix"
+    ):
         raise ISOxError(
             f"'{name}' doesn't support --release (its mirrors only serve the current release)."
         )
@@ -220,6 +239,13 @@ def validate_distro_config(name, distro_info):
             f"'{name}' can't discover a filename by scanning a 'single'-format "
             f"checksum file, which lists no filenames."
         )
+    if (
+        "release_filename_prefix" in distro_info
+        and distro_info.get("discovery_method") != "html_scan"
+    ):
+        raise ISOxError(
+            f"'{name}' sets release_filename_prefix, which only works with html_scan."
+        )
     urls_needing_https = list(distro_info["mirrors"])
     urls_needing_https += version_discovery_urls(distro_info)
     if "checksum_base" in distro_info:
@@ -229,7 +255,7 @@ def validate_distro_config(name, distro_info):
             raise ISOxError(f"'{name}' contains a non-HTTPS URL: {url}")
 
 
-def resolve_iso_filename(name, distro_info, sources, checksum_filename):
+def resolve_iso_filename(name, distro_info, sources, checksum_filename, release=None):
     # 1. "iso_filename" -> static and doesn't change, like Arch
     # 2. "iso_filename_contains" -> scan a shared checksum file
     # 3. "iso_filename_contains" + html_scan -> scan directory listing when no shared checksum exists
@@ -245,7 +271,11 @@ def resolve_iso_filename(name, distro_info, sources, checksum_filename):
         try:
             if use_html_scan:
                 return discover_via_html_listing(
-                    source, required_substrings, excluded_substrings
+                    source,
+                    required_substrings,
+                    excluded_substrings,
+                    release=release,
+                    release_prefix=distro_info.get("release_filename_prefix", ""),
                 )
             peek_url = source.rstrip("/") + "/" + checksum_filename
             response = requests.get(peek_url, timeout=10, headers=request_headers())
@@ -274,6 +304,11 @@ def resolve_iso_filename(name, distro_info, sources, checksum_filename):
             pass
         print(f"Couldn't discover an ISO filename via {source}")
 
+    if release is not None and "release_filename_prefix" in distro_info:
+        raise ISOxError(
+            f"couldn't find release {release} for '{name}' in any of its "
+            f"{len(sources)} sources. It may not exist, or may have been removed."
+        )
     raise ISOxError(
         f"couldn't discover an ISO filename for '{name}' from any of its "
         f"{len(sources)} sources."
@@ -421,7 +456,12 @@ def natural_sort_key(name):
 
 
 def discover_via_html_listing(
-    directory_url, required_substrings, excluded_substrings=(), must_end_with=".iso"
+    directory_url,
+    required_substrings,
+    excluded_substrings=(),
+    must_end_with=".iso",
+    release=None,
+    release_prefix="",
 ):
     response = requests.get(directory_url, timeout=10, headers=request_headers())
     response.raise_for_status()
@@ -433,6 +473,12 @@ def discover_via_html_listing(
         for link in links
         if link.endswith(must_end_with)
         and filename_matches(link, required_substrings, excluded_substrings)
+    ]
+    # Flat directories like Proxmox's keep every release side by side
+    matches = [
+        m
+        for m in matches
+        if release_matches(filename_release(m, release_prefix), release)
     ]
 
     if not matches:
@@ -688,8 +734,10 @@ def run():
     discovery_sources = ([checksum_base] if checksum_base else []) + mirrors
 
     iso_filename = resolve_iso_filename(
-        args.distro, distro_info, discovery_sources, checksum_filename
+        args.distro, distro_info, discovery_sources, checksum_filename, args.release
     )
+    if args.release is not None and not distro_info.get("version_directory"):
+        print(f"Resolved release {args.release} to {iso_filename}")
 
     if is_unsafe_filename(iso_filename):
         raise ISOxError(f"discovered filename looks unsafe: '{iso_filename}'")

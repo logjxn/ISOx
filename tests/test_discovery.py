@@ -460,3 +460,62 @@ def test_lts_release_still_rejects_interims_and_point_releases(monkeypatch, rele
     finder = isox.version_finder_for({"version_scheme": "ubuntu_lts"}, release)
     with pytest.raises(ValueError, match="No LTS-style"):
         finder("https://example.test/")
+
+
+# --- release from filename (flat directories) -------------------------------
+
+PROXMOX_LISTING = (
+    "proxmox-ve_9.2-1.iso",
+    "proxmox-ve_9.1-1.iso",
+    "proxmox-ve_8.4-1.iso",
+    "proxmox-ve_7.4-1.iso",
+    "proxmox-ve_9.2-1-arm64.iso",
+    "proxmox-backup-server_8.9-1.iso",
+)
+
+
+@pytest.mark.parametrize(
+    "release, expected",
+    [
+        ("8", "proxmox-ve_8.4-1.iso"),
+        ("9", "proxmox-ve_9.2-1.iso"),
+        ("9.1", "proxmox-ve_9.1-1.iso"),
+        (None, "proxmox-ve_9.2-1.iso"),
+    ],
+)
+def test_release_filters_filenames_in_a_flat_directory(monkeypatch, release, expected):
+    serve_html(monkeypatch, listing(*PROXMOX_LISTING))
+    found = isox.discover_via_html_listing(
+        "https://example.test/",
+        ["proxmox-ve_"],
+        ("arm64",),
+        release=release,
+        release_prefix="proxmox-ve_",
+    )
+    assert found == expected
+
+
+@pytest.mark.parametrize("release", ["6", "8.3", "84"])
+def test_release_missing_from_a_flat_directory_raises(monkeypatch, release):
+    serve_html(monkeypatch, listing(*PROXMOX_LISTING))
+    with pytest.raises(ValueError, match="No matching filename"):
+        isox.discover_via_html_listing(
+            "https://example.test/",
+            ["proxmox-ve_"],
+            ("arm64",),
+            release=release,
+            release_prefix="proxmox-ve_",
+        )
+
+
+@pytest.mark.parametrize(
+    "filename, expected",
+    [
+        ("proxmox-ve_8.4-1.iso", "8.4"),
+        ("proxmox-ve_10.0-2.iso", "10.0"),
+        ("proxmox-ve_beta.iso", None),
+        ("other_8.4-1.iso", None),
+    ],
+)
+def test_filename_release_reads_the_version_after_the_prefix(filename, expected):
+    assert isox.filename_release(filename, "proxmox-ve_") == expected

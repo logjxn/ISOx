@@ -343,3 +343,15 @@ def test_release_arg_rejects_anything_but_digits_and_dots(value):
 @pytest.mark.parametrize("value", ["9", "24.04", "22.2"])
 def test_release_arg_accepts_release_numbers(value):
     assert isox.release_arg(value) == value
+
+
+def test_release_filename_prefix_requires_html_scan():
+    config = {
+        "mirrors": ["https://mirror.test/"],
+        "checksum_filename": "SHA256SUMS",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["x"],
+        "release_filename_prefix": "x_",
+    }
+    with pytest.raises(isox.ISOxError, match="only works with html_scan"):
+        isox.validate_distro_config("x", config)
