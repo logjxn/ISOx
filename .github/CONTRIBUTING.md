@@ -63,6 +63,10 @@ your mirror URLs where the folder name goes, and ISOx will scrape the newest.
 
 If the folders aren’t plain numbers, `version_suffix` strips a suffix before sorting, and `version_scheme`: "ubuntu_lts" keeps only Ubuntu LTS releases.
 
+If the distro is a rolling release, set `"rolling": true` so `--release` is refused with a clear message.
+
+If the distro keeps every release in one flat directory (such as Proxmox's `proxmox-ve_9.2-1.iso`, `proxmox-ve_8.4-1.iso`), set `release_filename_prefix` to the part before the version number. It requires `"discovery_method": "html_scan"`.
+
 ### Checksum format
 
 Set `checksum_format` to whichever shape the distro publishes:

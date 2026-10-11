@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.4.0"
+__version__ = "3.5.0"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -689,7 +689,7 @@ def run():
     parser.add_argument(
         "--release",
         type=release_arg,
-        help="Pick a release instead of the newest, e.g. 24.04 or 9 (version-folder distros only)",
+        help="Pick a release instead of the newest, e.g. 24.04 or 9",
     )
     parser.add_argument("--version", action="version", version=f"ISOx {__version__}")
     args = parser.parse_args()
