@@ -26,6 +26,24 @@ def release_parts(release):
     return tuple(int(part) for part in release.split("."))
 
 
+def release_arg(value):
+    """argparse type for --release, numbers and dots only"""
+    if not RELEASE_PATTERN.fullmatch(value):
+        raise argparse.ArgumentTypeError(
+            f"'{value}' isn't a release number (expected something like 24.04 or 9)"
+        )
+    return value
+
+
+def check_release_supported(name, distro_info):
+    if distro_info.get("rolling"):
+        raise ISOxError(f"'{name}' is a rolling release and has no versions to select.")
+    if not distro_info.get("version_directory"):
+        raise ISOxError(
+            f"'{name}' doesn't support --release (its mirrors only serve the current release)."
+        )
+
+
 def user_config_dir():
     """Per-user config directory, following the platform convention."""
     if os.name == "nt":
@@ -483,7 +501,7 @@ def find_latest_lts_folder(directory_url, release=None):
 
     if not lts_folders:
         if release is not None:
-             raise ValueError(
+            raise ValueError(
                 f"No LTS-style (YY.04) folder matching release {release} found in directory listing"
             )
         raise ValueError("No LTS-style (YY.04) folders found in directory listing")
@@ -499,12 +517,18 @@ def version_finder_for(distro_info, release=None):
     return lambda url: find_latest_version_folder(url, suffix=suffix, release=release)
 
 
-def find_latest_version(name, discovery_urls, finder):
+def find_latest_version(name, discovery_urls, finder, release=None):
     for url in discovery_urls:
         try:
             return finder(url)
         except (requests.exceptions.RequestException, ValueError):
             print(f"Couldn't discover a version via {url}")
+    if release is not None:
+        raise ISOxError(
+            f"couldn't find release {release} for '{name}' from any of its "
+            f"{len(discovery_urls)} version_discovery_url entries. It may not exist, "
+            f"or the distro may have moved it to an archive."
+        )
     raise ISOxError(
         f"couldn't find a version folder for '{name}' from any of its "
         f"{len(discovery_urls)} version_discovery_url entries."
@@ -616,6 +640,11 @@ def run():
         default=DEFAULT_DOWNLOAD_DIR,
         help=f"Where to save the ISO (default: ./{DEFAULT_DOWNLOAD_DIR})",
     )
+    parser.add_argument(
+        "--release",
+        type=release_arg,
+        help="Pick a release instead of the newest, e.g. 24.04 or 9 (version-folder distros only)",
+    )
     parser.add_argument("--version", action="version", version=f"ISOx {__version__}")
     args = parser.parse_args()
 
@@ -632,6 +661,8 @@ def run():
 
     distro_info = distros[args.distro]
     validate_distro_config(args.distro, distro_info)
+    if args.release is not None:
+        check_release_supported(args.distro, distro_info)
 
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]
@@ -642,14 +673,17 @@ def run():
 
     # For distros that have no stable/latest alias, the current version needs to be discovered before continuing
     if distro_info.get("version_directory", False):
-        finder = version_finder_for(distro_info)
+        finder = version_finder_for(distro_info, args.release)
         latest_version = find_latest_version(
-            args.distro, version_discovery_urls(distro_info), finder
+            args.distro, version_discovery_urls(distro_info), finder, args.release
         )
         mirrors = [m.format(version=latest_version) for m in mirrors]
         if checksum_base:
             checksum_base = checksum_base.format(version=latest_version)
-        print(f"Discovered latest version: {latest_version}")
+        if args.release is not None:
+            print(f"Resolved release {args.release} to {latest_version}")
+        else:
+            print(f"Discovered latest version: {latest_version}")
 
     discovery_sources = ([checksum_base] if checksum_base else []) + mirrors
 

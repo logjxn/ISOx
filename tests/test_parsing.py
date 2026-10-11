@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import types
+import argparse
 
 import pytest
 
@@ -328,3 +329,17 @@ def test_verify_checksum_missing_entry_raises(tmp_path):
     target.write_bytes(b"hello")
     with pytest.raises(ValueError, match="No checksum entry found"):
         isox.verify_checksum(target, "arch.iso", {}, "sha256")
+
+
+@pytest.mark.parametrize(
+    "value", ["", "9a", "../9", "24.04/..", "\u0663", "24.04\n", " 9"]
+)
+def test_release_arg_rejects_anything_but_digits_and_dots(value):
+    # "\u0663" is an Arabic-Indic 3: \d and int() accept it, so the pattern uses [0-9]
+    with pytest.raises(argparse.ArgumentTypeError, match="isn't a release number"):
+        isox.release_arg(value)
+
+
+@pytest.mark.parametrize("value", ["9", "24.04", "22.2"])
+def test_release_arg_accepts_release_numbers(value):
+    assert isox.release_arg(value) == value

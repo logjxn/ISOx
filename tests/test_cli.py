@@ -397,3 +397,80 @@ def test_checksum_comes_from_the_canonical_host_not_the_fastest_mirror(
     assert checksum_requests == ["https://canonical.test/iso/sha256sums.txt"]
     assert (tmp_path / "ISOx_Downloads" / "test.iso.FAILED").exists()
     assert "checksum mismatch" in capsys.readouterr().out
+
+
+def ubuntu_get(listing):
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.rstrip("/") == "https://mirror.test":
+            return FakeResponse(text=listing)
+        if url.endswith("SHA256SUMS"):
+            return FakeResponse(text=f"{ISO_SHA256}  test.iso\n")
+        return FakeResponse(
+            200, {"Content-Length": str(len(ISO_BODY)), "ETag": '"v1"'}, ISO_BODY
+        )
+
+    return fake_get
+
+
+def test_release_flag_selects_an_older_lts(tmp_path, monkeypatch, capsys):
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=UBUNTU_CONFIG,
+        argv=("isox.py", "ubuntu", "--release", "24.04"),
+    )
+    monkeypatch.setattr(
+        isox.requests, "get", ubuntu_get('<a href="26.04/">a</a><a href="24.04/">b</a>')
+    )
+
+    isox.run()
+
+    assert "Resolved release 24.04 to 24.04" in capsys.readouterr().out
+
+
+def test_release_that_doesnt_exist_names_itself(tmp_path, monkeypatch, capsys):
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=UBUNTU_CONFIG,
+        argv=("isox.py", "ubuntu", "--release", "22.04"),
+    )
+    monkeypatch.setattr(isox.requests, "get", ubuntu_get('<a href="26.04/">a</a>'))
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "release 22.04" in capsys.readouterr().out
+
+
+def test_release_on_a_non_versioned_distro_is_refused_before_any_request(
+    tmp_path, monkeypatch, capsys
+):
+    calls = []
+    setup_repo(tmp_path, monkeypatch, argv=("isox.py", "testdistro", "--release", "9"))
+    monkeypatch.setattr(isox.requests, "get", lambda *a, **k: calls.append(a))
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert calls == []
+    assert "only serve the current release" in capsys.readouterr().out
+    assert not (tmp_path / "ISOx_Downloads").exists()
+
+
+def test_release_on_a_rolling_distro_is_refused(tmp_path, monkeypatch, capsys):
+    config = {"rolling": dict(UBUNTU_CONFIG["ubuntu"], rolling=True)}
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=config,
+        argv=("isox.py", "rolling", "--release", "1"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "rolling release" in capsys.readouterr().out

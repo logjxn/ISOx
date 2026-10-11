@@ -8,7 +8,8 @@
         "checksum_base": "https://geo.mirror.pkgbuild.com/iso/latest/",
         "checksum_filename": "sha256sums.txt",
         "hash_algo": "sha256",
-        "iso_filename": "archlinux-x86_64.iso"
+        "iso_filename": "archlinux-x86_64.iso",
+        "rolling": true
     },
     "debian": {
         "mirrors": [
@@ -31,7 +32,8 @@
         "checksum_base": "https://kali.download/base-images/current/",
         "checksum_filename": "SHA256SUMS",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["installer-amd64"]
+        "iso_filename_contains": ["installer-amd64"],
+        "rolling": true
     },
     "alpine": {
         "mirrors": [
@@ -89,7 +91,8 @@
         "checksum_filename": "openSUSE-Tumbleweed-NET-x86_64-Current.iso.sha256",
         "discovery_method": "checksum_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["openSUSE", "Tumbleweed", "NET", "Snapshot"]
+        "iso_filename_contains": ["openSUSE", "Tumbleweed", "NET", "Snapshot"],
+        "rolling": true
     },
     "gentoo": {
         "mirrors": [
@@ -101,7 +104,8 @@
         "checksum_filename": "{iso_filename}.sha256",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["install-amd64-minimal"]
+        "iso_filename_contains": ["install-amd64-minimal"],
+        "rolling": true
     },
     "void": {
         "mirrors": [
@@ -114,7 +118,8 @@
         "checksum_format" : "bsd",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["live-x86_64-2", "base"]
+        "iso_filename_contains": ["live-x86_64-2", "base"],
+        "rolling": true
     },
     "garuda": {
         "mirrors": ["https://iso.builds.garudalinux.org/iso/garuda/mokka/{version}/"],
@@ -124,7 +129,8 @@
         "checksum_filename": "{iso_filename}.sha256",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["garuda", "mokka"]
+        "iso_filename_contains": ["garuda", "mokka"],
+        "rolling": true
     },
     "ubuntu": {
         "mirrors": [
@@ -188,7 +194,8 @@
         "checksum_filename": "{iso_filename}.sha256",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["cachyos-desktop", "linux"]
+        "iso_filename_contains": ["cachyos-desktop", "linux"],
+        "rolling": true
     },
     "mageia": {
         "mirrors": [
@@ -216,7 +223,8 @@
         "checksum_filename": "{iso_filename}.sha256sum",
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
-        "iso_filename_contains": ["plasma6x11", "x86_64"]
+        "iso_filename_contains": ["plasma6x11", "x86_64"],
+        "rolling": true
     },
     "proxmox": {
         "mirrors": [
