@@ -397,3 +397,198 @@ def test_checksum_comes_from_the_canonical_host_not_the_fastest_mirror(
     assert checksum_requests == ["https://canonical.test/iso/sha256sums.txt"]
     assert (tmp_path / "ISOx_Downloads" / "test.iso.FAILED").exists()
     assert "checksum mismatch" in capsys.readouterr().out
+
+
+def ubuntu_get(listing):
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.rstrip("/") == "https://mirror.test":
+            return FakeResponse(text=listing)
+        if url.endswith("SHA256SUMS"):
+            return FakeResponse(text=f"{ISO_SHA256}  test.iso\n")
+        return FakeResponse(
+            200, {"Content-Length": str(len(ISO_BODY)), "ETag": '"v1"'}, ISO_BODY
+        )
+
+    return fake_get
+
+
+@pytest.mark.parametrize(
+    "release, message",
+    [("24.04", None), ("24", "Resolved release 24 to 24.04")],
+)
+def test_release_flag_selects_an_older_lts(
+    tmp_path, monkeypatch, capsys, release, message
+):
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=UBUNTU_CONFIG,
+        argv=("isox.py", "ubuntu", "--release", release),
+    )
+    monkeypatch.setattr(
+        isox.requests, "get", ubuntu_get('<a href="26.04/">a</a><a href="24.04/">b</a>')
+    )
+
+    isox.run()
+
+    out = capsys.readouterr().out
+    assert "https://mirror.test/24.04/" in out
+    if message:
+        assert message in out
+    else:
+        assert "Resolved release" not in out
+
+
+def test_release_that_doesnt_exist_names_itself(tmp_path, monkeypatch, capsys):
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=UBUNTU_CONFIG,
+        argv=("isox.py", "ubuntu", "--release", "22.04"),
+    )
+    monkeypatch.setattr(isox.requests, "get", ubuntu_get('<a href="26.04/">a</a>'))
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "release 22.04" in capsys.readouterr().out
+
+
+def test_release_on_a_non_versioned_distro_is_refused_before_any_request(
+    tmp_path, monkeypatch, capsys
+):
+    calls = []
+    setup_repo(tmp_path, monkeypatch, argv=("isox.py", "testdistro", "--release", "9"))
+    monkeypatch.setattr(isox.requests, "get", lambda *a, **k: calls.append(a))
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert calls == []
+    assert "only serve the current release" in capsys.readouterr().out
+    assert not (tmp_path / "ISOx_Downloads").exists()
+
+
+def test_release_on_a_rolling_distro_is_refused(tmp_path, monkeypatch, capsys):
+    config = {"rolling": dict(UBUNTU_CONFIG["ubuntu"], rolling=True)}
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=config,
+        argv=("isox.py", "rolling", "--release", "1"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "rolling release" in capsys.readouterr().out
+
+
+FLAT_CONFIG = {
+    "flat": {
+        "mirrors": ["https://mirror.test/iso/"],
+        "checksum_filename": "SHA256SUMS",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["flat-ve_"],
+        "release_filename_prefix": "flat-ve_",
+    }
+}
+
+
+HTML_FOLDER_CONFIG = {
+    "folder": {
+        "mirrors": ["https://mirror.test/{version}/"],
+        "version_directory": True,
+        "version_discovery_url": "https://mirror.test/",
+        "checksum_filename": "SHA256SUMS",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["folder"],
+    }
+}
+
+
+def test_release_flag_on_an_html_scan_folder_distro(tmp_path, monkeypatch, capsys):
+    # The release filter used to drop every filename when no
+    # release_filename_prefix was set, breaking --release on Ubuntu, Mint, Fedora...
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.rstrip("/") == "https://mirror.test":
+            return FakeResponse(text='<a href="9/">a</a><a href="10/">b</a>')
+        if url == "https://mirror.test/9/":
+            return FakeResponse(text='<a href="folder-9.2.iso">a</a>')
+        if url.endswith("SHA256SUMS"):
+            return FakeResponse(text=f"{ISO_SHA256}  folder-9.2.iso\n")
+        return FakeResponse(
+            200, {"Content-Length": str(len(ISO_BODY)), "ETag": '"v1"'}, ISO_BODY
+        )
+
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=HTML_FOLDER_CONFIG,
+        argv=("isox.py", "folder", "--release", "9"),
+    )
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    isox.run()
+
+    out = capsys.readouterr().out
+    assert "https://mirror.test/9/folder-9.2.iso" in out
+    assert "Checksum matches, file is good." in out
+
+
+def flat_get(listing):
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url == "https://mirror.test/iso/":
+            return FakeResponse(text=listing)
+        if url.endswith("SHA256SUMS"):
+            return FakeResponse(text=f"{ISO_SHA256}  flat-ve_8.4-1.iso\n")
+        return FakeResponse(
+            200, {"Content-Length": str(len(ISO_BODY)), "ETag": '"v1"'}, ISO_BODY
+        )
+
+    return fake_get
+
+
+def test_release_flag_selects_from_a_flat_directory(tmp_path, monkeypatch, capsys):
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=FLAT_CONFIG,
+        argv=("isox.py", "flat", "--release", "8"),
+    )
+    monkeypatch.setattr(
+        isox.requests,
+        "get",
+        flat_get('<a href="flat-ve_9.2-1.iso">a</a><a href="flat-ve_8.4-1.iso">b</a>'),
+    )
+
+    isox.run()
+
+    out = capsys.readouterr().out
+    assert "Resolved release 8 to flat-ve_8.4-1.iso" in out
+    assert "Checksum matches, file is good." in out
+
+
+def test_release_missing_from_a_flat_directory_names_itself(
+    tmp_path, monkeypatch, capsys
+):
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=FLAT_CONFIG,
+        argv=("isox.py", "flat", "--release", "7"),
+    )
+    monkeypatch.setattr(
+        isox.requests, "get", flat_get('<a href="flat-ve_9.2-1.iso">a</a>')
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "couldn't find release 7 for 'flat'" in capsys.readouterr().out

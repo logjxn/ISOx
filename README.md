@@ -46,6 +46,13 @@ Save somewhere other than `./ISOx_Downloads`:
 python isox.py arch --output-dir /example/directory
 ```
 
+Pick an older release instead of the newest:
+```bash
+python isox.py ubuntu-server --release 24.04
+python isox.py proxmox --release 8
+python isox.py mint --release 22        # newest 22.x
+```
+
 Download and verify a distro:
 ```bash
 python isox.py arch
@@ -86,6 +93,7 @@ Checksum matches, file is good.
 - **Config-driven distro support** - supported distros are defined in `distros.json`, meaning adding a new distro is a JSON entry, not a code change.
 - **Three ISO-discovery strategies** - covers distros that publish their ISOs in very different ways.
 - **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered by scanning a parent directory and sorting versions (folder names).
+- **Release selection** - `--release` picks an older release, such as Ubuntu 24.04 or Proxmox 8. A partial version like `22` gets the newest release in that series.
 - **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
 - **Resumable downloads** - interrupted transfers are written to a `.part` file and continued via an HTTP `Range` request on the next run. (.part files that are stale are also checked before resuming, and are scrapped if they're out of date)
 - **Live progress bar** - shows percentage and real-time throughput, and degrades to a plain byte counter if the server won't report a total size.
@@ -150,6 +158,8 @@ If the included mirrors are not ideal for your location, you can easily update t
 | `version_discovery_url` | One URL or a list of them, tried in order. |
 | `version_scheme` | `ubuntu_lts` to select only LTS releases. |
 | `version_suffix` | Suffix to strip from version folder names before sorting, such as `-stream` for CentOS's `10-stream`. |
+| `rolling` | `true` for rolling-release distros. `--release` is refused with a clear message. |
+| `release_filename_prefix` | For flat directories that keep every release side by side, such as `proxmox-ve_`. `--release` filters on the version after this prefix. Requires `html_scan`. |
 
 #### Where `distros.json` is loaded from
 
@@ -184,6 +194,21 @@ into every `{version}` placeholder.
 `version_scheme: "ubuntu_lts"` narrows this to even-year `.04` folders, so
 `python isox.py ubuntu` resolves to the latest LTS rather than the latest interim.
 
+### Selecting a release
+
+`--release` narrows discovery to a specified version. The listing is still scraped, and
+only entries whose version starts with the requested numbers are kept. `22` matches
+`22.1` and `22.3` but not `220`. The newest of those wins.
+
+- **Version folders** (Ubuntu, Ubuntu Server, Fedora, Rocky, Alma, Mint, Mageia, Zorin,
+  CentOS Stream) filter the folder names. `ubuntu` still only accepts LTS releases.
+- **Flat directories** (Proxmox) filter filenames using `release_filename_prefix`.
+- **Rolling distros** and distros whose mirrors only serve the current release refuse the
+  flag before any network request.
+
+A release must still be on the configured mirrors. Distros that move old releases to an
+archive (Rocky & Fedora for example) can't serve them through `--release`.
+
 ### Checksum parsing
 
 Three published formats are normalized into the same `{filename: hash}` lookup:
@@ -196,7 +221,7 @@ Three published formats are normalized into the same `{filename: hash}` lookup:
 
 Each mirror is sampled with a ranged GET pulling the first ~2MB of the actual ISO,
 and real throughput is measured over that sample. Fastest wins. Mirrors that time out or
-error are skipped. 
+error are skipped.
 
 ### Resumable downloads
 
@@ -217,7 +242,7 @@ renames the ISO to `<filename>.FAILED`; a missing entry renames it to `<filename
 a mirror serving a modified ISO. Modified ISOs are handled by grabbing the checksum from
 the main distro host.
 
-**Not covered.** If the distro's own server is compromised, both the ISO and its checksum can be replaced together. 
+**Not covered.** If the distro's own server is compromised, both the ISO and its checksum can be replaced together.
 Only signature verification (GPG) catches that.
 
 GPG is not included as it would require maintaining trusted public keys (or fingerprints)

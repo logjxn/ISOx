@@ -417,3 +417,115 @@ def test_stream_folders_are_rejected_without_a_suffix(monkeypatch):
     finder = isox.version_finder_for({})
     with pytest.raises(ValueError, match="No version-numbered folders"):
         finder("https://example.test/")
+
+
+# --- release filtering ------------------------------------------------------
+
+
+def test_release_picks_the_newest_of_a_partial_version(monkeypatch):
+    serve_html(monkeypatch, listing("21.3/", "22/", "22.1/", "22.2/"))
+    finder = isox.version_finder_for({}, "22")
+    assert finder("https://example.test/") == "22.2"
+
+
+def test_release_matches_whole_components_not_string_prefixes(monkeypatch):
+    serve_html(monkeypatch, listing("22/", "2.1/"))
+    finder = isox.version_finder_for({}, "2")
+    assert finder("https://example.test/") == "2.1"
+
+
+def test_release_composes_with_version_suffix(monkeypatch):
+    serve_html(monkeypatch, listing("9-stream/", "10-stream/"))
+    finder = isox.version_finder_for({"version_suffix": "-stream"}, "9")
+    assert finder("https://example.test/") == "9-stream"
+
+
+def test_release_that_isnt_listed_raises(monkeypatch):
+    serve_html(monkeypatch, listing("9/", "10/"))
+    finder = isox.version_finder_for({}, "11")
+    with pytest.raises(ValueError, match="No version-numbered folders"):
+        finder("https://example.test/")
+
+
+@pytest.mark.parametrize("release, expected", [("24.04", "24.04"), ("24", "24.04")])
+def test_lts_release_selects_an_older_lts(monkeypatch, release, expected):
+    serve_html(monkeypatch, listing(*UBUNTU_LISTING))
+    finder = isox.version_finder_for({"version_scheme": "ubuntu_lts"}, release)
+    assert finder("https://example.test/") == expected
+
+
+@pytest.mark.parametrize("release", ["25.10", "26.04.1"])
+def test_lts_release_still_rejects_interims_and_point_releases(monkeypatch, release):
+    serve_html(monkeypatch, listing(*UBUNTU_LISTING))
+    finder = isox.version_finder_for({"version_scheme": "ubuntu_lts"}, release)
+    with pytest.raises(ValueError, match="No LTS-style"):
+        finder("https://example.test/")
+
+
+# --- release from filename (flat directories) -------------------------------
+
+PROXMOX_LISTING = (
+    "proxmox-ve_9.2-1.iso",
+    "proxmox-ve_9.1-1.iso",
+    "proxmox-ve_8.4-1.iso",
+    "proxmox-ve_7.4-1.iso",
+    "proxmox-ve_9.2-1-arm64.iso",
+    "proxmox-backup-server_8.9-1.iso",
+)
+
+
+@pytest.mark.parametrize(
+    "release, expected",
+    [
+        ("8", "proxmox-ve_8.4-1.iso"),
+        ("9", "proxmox-ve_9.2-1.iso"),
+        ("9.1", "proxmox-ve_9.1-1.iso"),
+        (None, "proxmox-ve_9.2-1.iso"),
+    ],
+)
+def test_release_filters_filenames_in_a_flat_directory(monkeypatch, release, expected):
+    serve_html(monkeypatch, listing(*PROXMOX_LISTING))
+    found = isox.discover_via_html_listing(
+        "https://example.test/",
+        ["proxmox-ve_"],
+        ("arm64",),
+        release=release,
+        release_prefix="proxmox-ve_",
+    )
+    assert found == expected
+
+
+@pytest.mark.parametrize("release", ["6", "8.3", "84"])
+def test_release_missing_from_a_flat_directory_raises(monkeypatch, release):
+    serve_html(monkeypatch, listing(*PROXMOX_LISTING))
+    with pytest.raises(ValueError, match="No matching filename"):
+        isox.discover_via_html_listing(
+            "https://example.test/",
+            ["proxmox-ve_"],
+            ("arm64",),
+            release=release,
+            release_prefix="proxmox-ve_",
+        )
+
+
+@pytest.mark.parametrize(
+    "filename, expected",
+    [
+        ("proxmox-ve_8.4-1.iso", "8.4"),
+        ("proxmox-ve_10.0-2.iso", "10.0"),
+        ("proxmox-ve_beta.iso", None),
+        ("other_8.4-1.iso", None),
+    ],
+)
+def test_filename_release_reads_the_version_after_the_prefix(filename, expected):
+    assert isox.filename_release(filename, "proxmox-ve_") == expected
+
+
+def test_release_without_prefix_keeps_folder_filenames(monkeypatch):
+    # Folder distros pin the release via the folder, so filenames
+    # must not be filtered again when no release_filename_prefix is set
+    serve_html(monkeypatch, listing("ubuntu-24.04.3-live-server-amd64.iso"))
+    found = isox.discover_via_html_listing(
+        "https://example.test/", ["live-server", "amd64"], release="24.04"
+    )
+    assert found == "ubuntu-24.04.3-live-server-amd64.iso"

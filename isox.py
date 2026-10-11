@@ -11,9 +11,56 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.4.0"
+__version__ = "3.5.0"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
+
+
+RELEASE_PATTERN = re.compile(r"[0-9]+(\.[0-9]+)*")
+
+
+def release_parts(release):
+    """'24.04' -> (24, 4). Compared as ints so '24.4' and '24.04' agree."""
+    if release is None:
+        return None
+    return tuple(int(part) for part in release.split("."))
+
+
+def release_arg(value):
+    """argparse type for --release, numbers and dots only"""
+    if not RELEASE_PATTERN.fullmatch(value):
+        raise argparse.ArgumentTypeError(
+            f"'{value}' isn't a release number (expected something like 24.04 or 9)"
+        )
+    return value
+
+
+def filename_release(filename, prefix):
+    """'proxmox-ve_8.4-1.iso' with prefix 'proxmox-ve_' -> '8.4'."""
+    if not filename.startswith(prefix):
+        return None
+    found = RELEASE_PATTERN.match(filename, len(prefix))
+    return found.group(0) if found else None
+
+
+def release_matches(version_text, release):
+    if release is None:
+        return True
+    if version_text is None:
+        return False
+    wanted = release_parts(release)
+    return release_parts(version_text)[: len(wanted)] == wanted
+
+
+def check_release_supported(name, distro_info):
+    if distro_info.get("rolling"):
+        raise ISOxError(f"'{name}' is a rolling release and has no versions to select.")
+    if not distro_info.get("version_directory") and not distro_info.get(
+        "release_filename_prefix"
+    ):
+        raise ISOxError(
+            f"'{name}' doesn't support --release (its mirrors only serve the current release)."
+        )
 
 
 def user_config_dir():
@@ -192,6 +239,13 @@ def validate_distro_config(name, distro_info):
             f"'{name}' can't discover a filename by scanning a 'single'-format "
             f"checksum file, which lists no filenames."
         )
+    if (
+        "release_filename_prefix" in distro_info
+        and distro_info.get("discovery_method") != "html_scan"
+    ):
+        raise ISOxError(
+            f"'{name}' sets release_filename_prefix, which only works with html_scan."
+        )
     urls_needing_https = list(distro_info["mirrors"])
     urls_needing_https += version_discovery_urls(distro_info)
     if "checksum_base" in distro_info:
@@ -201,7 +255,7 @@ def validate_distro_config(name, distro_info):
             raise ISOxError(f"'{name}' contains a non-HTTPS URL: {url}")
 
 
-def resolve_iso_filename(name, distro_info, sources, checksum_filename):
+def resolve_iso_filename(name, distro_info, sources, checksum_filename, release=None):
     # 1. "iso_filename" -> static and doesn't change, like Arch
     # 2. "iso_filename_contains" -> scan a shared checksum file
     # 3. "iso_filename_contains" + html_scan -> scan directory listing when no shared checksum exists
@@ -217,7 +271,11 @@ def resolve_iso_filename(name, distro_info, sources, checksum_filename):
         try:
             if use_html_scan:
                 return discover_via_html_listing(
-                    source, required_substrings, excluded_substrings
+                    source,
+                    required_substrings,
+                    excluded_substrings,
+                    release=release,
+                    release_prefix=distro_info.get("release_filename_prefix", ""),
                 )
             peek_url = source.rstrip("/") + "/" + checksum_filename
             response = requests.get(peek_url, timeout=10, headers=request_headers())
@@ -246,6 +304,11 @@ def resolve_iso_filename(name, distro_info, sources, checksum_filename):
             pass
         print(f"Couldn't discover an ISO filename via {source}")
 
+    if release is not None and "release_filename_prefix" in distro_info:
+        raise ISOxError(
+            f"couldn't find release {release} for '{name}' in any of its "
+            f"{len(sources)} sources. It may not exist, or may have been removed."
+        )
     raise ISOxError(
         f"couldn't discover an ISO filename for '{name}' from any of its "
         f"{len(sources)} sources."
@@ -393,7 +456,12 @@ def natural_sort_key(name):
 
 
 def discover_via_html_listing(
-    directory_url, required_substrings, excluded_substrings=(), must_end_with=".iso"
+    directory_url,
+    required_substrings,
+    excluded_substrings=(),
+    must_end_with=".iso",
+    release=None,
+    release_prefix="",
 ):
     response = requests.get(directory_url, timeout=10, headers=request_headers())
     response.raise_for_status()
@@ -406,6 +474,13 @@ def discover_via_html_listing(
         if link.endswith(must_end_with)
         and filename_matches(link, required_substrings, excluded_substrings)
     ]
+    # Flat directories like Proxmox's keep every release side by side
+    if release_prefix:
+        matches = [
+            m
+            for m in matches
+            if release_matches(filename_release(m, release_prefix), release)
+        ]
 
     if not matches:
         raise ValueError(
@@ -414,12 +489,13 @@ def discover_via_html_listing(
     return max(matches, key=natural_sort_key)
 
 
-def find_latest_version_folder(directory_url, min_parts=1, suffix=""):
+def find_latest_version_folder(directory_url, min_parts=1, suffix="", release=None):
     response = requests.get(directory_url, timeout=10, headers=request_headers())
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
     links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
+    wanted = release_parts(release)
 
     version_folders = []
     for link in links:
@@ -430,23 +506,33 @@ def find_latest_version_folder(directory_url, min_parts=1, suffix=""):
                 continue
             number = cleaned[: -len(suffix)]
         parts = number.split(".")
-        if all(part.isdigit() for part in parts) and len(parts) >= min_parts:
-            version_folders.append((tuple(int(p) for p in parts), cleaned))
+        if not (all(part.isdigit() for part in parts) and len(parts) >= min_parts):
+            continue
+        version = tuple(int(p) for p in parts)
+        # A release of "22" keeps 22, 22.1 and 22.2, but not 220
+        if wanted is not None and version[: len(wanted)] != wanted:
+            continue
+        version_folders.append((version, cleaned))
 
     if not version_folders:
+        if release is not None:
+            raise ValueError(
+                f"No version-numbered folders matching release {release} found in directory listing"
+            )
         raise ValueError("No version-numbered folders found in directory listing")
 
     version_folders.sort(key=lambda x: x[0])
     return version_folders[-1][1]
 
 
-def find_latest_lts_folder(directory_url):
+def find_latest_lts_folder(directory_url, release=None):
     # Ubuntu LTS releases are always "YY.04" with YY even
     response = requests.get(directory_url, timeout=10, headers=request_headers())
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
     links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
+    wanted = release_parts(release)
 
     lts_folders = []
     for link in links:
@@ -454,29 +540,42 @@ def find_latest_lts_folder(directory_url):
         parts = cleaned.split(".")
         if len(parts) == 2 and all(p.isdigit() for p in parts):
             year, month = int(parts[0]), int(parts[1])
-            if month == 4 and year % 2 == 0:
-                lts_folders.append((year, cleaned))
+            if month != 4 or year % 2 != 0:
+                continue
+            if wanted is not None and (year, month)[: len(wanted)] != wanted:
+                continue
+            lts_folders.append((year, cleaned))
 
     if not lts_folders:
+        if release is not None:
+            raise ValueError(
+                f"No LTS-style (YY.04) folder matching release {release} found in directory listing"
+            )
         raise ValueError("No LTS-style (YY.04) folders found in directory listing")
 
     lts_folders.sort()
     return lts_folders[-1][1]
 
 
-def version_finder_for(distro_info):
+def version_finder_for(distro_info, release=None):
     if distro_info.get("version_scheme") == "ubuntu_lts":
-        return find_latest_lts_folder
+        return lambda url: find_latest_lts_folder(url, release=release)
     suffix = distro_info.get("version_suffix", "")
-    return lambda url: find_latest_version_folder(url, suffix=suffix)
+    return lambda url: find_latest_version_folder(url, suffix=suffix, release=release)
 
 
-def find_latest_version(name, discovery_urls, finder):
+def find_latest_version(name, discovery_urls, finder, release=None):
     for url in discovery_urls:
         try:
             return finder(url)
         except (requests.exceptions.RequestException, ValueError):
             print(f"Couldn't discover a version via {url}")
+    if release is not None:
+        raise ISOxError(
+            f"couldn't find release {release} for '{name}' from any of its "
+            f"{len(discovery_urls)} version_discovery_url entries. It may not exist, "
+            f"or the distro may have moved it to an archive."
+        )
     raise ISOxError(
         f"couldn't find a version folder for '{name}' from any of its "
         f"{len(discovery_urls)} version_discovery_url entries."
@@ -588,6 +687,11 @@ def run():
         default=DEFAULT_DOWNLOAD_DIR,
         help=f"Where to save the ISO (default: ./{DEFAULT_DOWNLOAD_DIR})",
     )
+    parser.add_argument(
+        "--release",
+        type=release_arg,
+        help="Pick a release instead of the newest, e.g. 24.04 or 9",
+    )
     parser.add_argument("--version", action="version", version=f"ISOx {__version__}")
     args = parser.parse_args()
 
@@ -604,6 +708,8 @@ def run():
 
     distro_info = distros[args.distro]
     validate_distro_config(args.distro, distro_info)
+    if args.release is not None:
+        check_release_supported(args.distro, distro_info)
 
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]
@@ -614,20 +720,25 @@ def run():
 
     # For distros that have no stable/latest alias, the current version needs to be discovered before continuing
     if distro_info.get("version_directory", False):
-        finder = version_finder_for(distro_info)
+        finder = version_finder_for(distro_info, args.release)
         latest_version = find_latest_version(
-            args.distro, version_discovery_urls(distro_info), finder
+            args.distro, version_discovery_urls(distro_info), finder, args.release
         )
         mirrors = [m.format(version=latest_version) for m in mirrors]
         if checksum_base:
             checksum_base = checksum_base.format(version=latest_version)
-        print(f"Discovered latest version: {latest_version}")
+        if args.release is None:
+            print(f"Discovered latest version: {latest_version}")
+        elif args.release != latest_version:
+            print(f"Resolved release {args.release} to {latest_version}")
 
     discovery_sources = ([checksum_base] if checksum_base else []) + mirrors
 
     iso_filename = resolve_iso_filename(
-        args.distro, distro_info, discovery_sources, checksum_filename
+        args.distro, distro_info, discovery_sources, checksum_filename, args.release
     )
+    if args.release is not None and not distro_info.get("version_directory"):
+        print(f"Resolved release {args.release} to {iso_filename}")
 
     if is_unsafe_filename(iso_filename):
         raise ISOxError(f"discovered filename looks unsafe: '{iso_filename}'")
