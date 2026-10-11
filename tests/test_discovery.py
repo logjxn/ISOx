@@ -417,3 +417,46 @@ def test_stream_folders_are_rejected_without_a_suffix(monkeypatch):
     finder = isox.version_finder_for({})
     with pytest.raises(ValueError, match="No version-numbered folders"):
         finder("https://example.test/")
+
+
+# --- release filtering ------------------------------------------------------
+
+
+def test_release_picks_the_newest_of_a_partial_version(monkeypatch):
+    serve_html(monkeypatch, listing("21.3/", "22/", "22.1/", "22.2/"))
+    finder = isox.version_finder_for({}, "22")
+    assert finder("https://example.test/") == "22.2"
+
+
+def test_release_matches_whole_components_not_string_prefixes(monkeypatch):
+    serve_html(monkeypatch, listing("22/", "2.1/"))
+    finder = isox.version_finder_for({}, "2")
+    assert finder("https://example.test/") == "2.1"
+
+
+def test_release_composes_with_version_suffix(monkeypatch):
+    serve_html(monkeypatch, listing("9-stream/", "10-stream/"))
+    finder = isox.version_finder_for({"version_suffix": "-stream"}, "9")
+    assert finder("https://example.test/") == "9-stream"
+
+
+def test_release_that_isnt_listed_raises(monkeypatch):
+    serve_html(monkeypatch, listing("9/", "10/"))
+    finder = isox.version_finder_for({}, "11")
+    with pytest.raises(ValueError, match="No version-numbered folders"):
+        finder("https://example.test/")
+
+
+@pytest.mark.parametrize("release, expected", [("24.04", "24.04"), ("24", "24.04")])
+def test_lts_release_selects_an_older_lts(monkeypatch, release, expected):
+    serve_html(monkeypatch, listing(*UBUNTU_LISTING))
+    finder = isox.version_finder_for({"version_scheme": "ubuntu_lts"}, release)
+    assert finder("https://example.test/") == expected
+
+
+@pytest.mark.parametrize("release", ["25.10", "26.04.1"])
+def test_lts_release_still_rejects_interims_and_point_releases(monkeypatch, release):
+    serve_html(monkeypatch, listing(*UBUNTU_LISTING))
+    finder = isox.version_finder_for({"version_scheme": "ubuntu_lts"}, release)
+    with pytest.raises(ValueError, match="No LTS-style"):
+        finder("https://example.test/")

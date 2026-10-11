@@ -16,6 +16,16 @@ PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
 
+RELEASE_PATTERN = re.compile(r"[0-9]+(\.[0-9]+)*")
+
+
+def release_parts(release):
+    """'24.04' -> (24, 4). Compared as ints so '24.4' and '24.04' agree."""
+    if release is None:
+        return None
+    return tuple(int(part) for part in release.split("."))
+
+
 def user_config_dir():
     """Per-user config directory, following the platform convention."""
     if os.name == "nt":
@@ -414,12 +424,13 @@ def discover_via_html_listing(
     return max(matches, key=natural_sort_key)
 
 
-def find_latest_version_folder(directory_url, min_parts=1, suffix=""):
+def find_latest_version_folder(directory_url, min_parts=1, suffix="", release=None):
     response = requests.get(directory_url, timeout=10, headers=request_headers())
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
     links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
+    wanted = release_parts(release)
 
     version_folders = []
     for link in links:
@@ -430,23 +441,33 @@ def find_latest_version_folder(directory_url, min_parts=1, suffix=""):
                 continue
             number = cleaned[: -len(suffix)]
         parts = number.split(".")
-        if all(part.isdigit() for part in parts) and len(parts) >= min_parts:
-            version_folders.append((tuple(int(p) for p in parts), cleaned))
+        if not (all(part.isdigit() for part in parts) and len(parts) >= min_parts):
+            continue
+        version = tuple(int(p) for p in parts)
+        # A release of "22" keeps 22, 22.1 and 22.2, but not 220
+        if wanted is not None and version[: len(wanted)] != wanted:
+            continue
+        version_folders.append((version, cleaned))
 
     if not version_folders:
+        if release is not None:
+            raise ValueError(
+                f"No version-numbered folders matching release {release} found in directory listing"
+            )
         raise ValueError("No version-numbered folders found in directory listing")
 
     version_folders.sort(key=lambda x: x[0])
     return version_folders[-1][1]
 
 
-def find_latest_lts_folder(directory_url):
+def find_latest_lts_folder(directory_url, release=None):
     # Ubuntu LTS releases are always "YY.04" with YY even
     response = requests.get(directory_url, timeout=10, headers=request_headers())
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
     links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
+    wanted = release_parts(release)
 
     lts_folders = []
     for link in links:
@@ -454,21 +475,28 @@ def find_latest_lts_folder(directory_url):
         parts = cleaned.split(".")
         if len(parts) == 2 and all(p.isdigit() for p in parts):
             year, month = int(parts[0]), int(parts[1])
-            if month == 4 and year % 2 == 0:
-                lts_folders.append((year, cleaned))
+            if month != 4 or year % 2 != 0:
+                continue
+            if wanted is not None and (year, month)[: len(wanted)] != wanted:
+                continue
+            lts_folders.append((year, cleaned))
 
     if not lts_folders:
+        if release is not None:
+             raise ValueError(
+                f"No LTS-style (YY.04) folder matching release {release} found in directory listing"
+            )
         raise ValueError("No LTS-style (YY.04) folders found in directory listing")
 
     lts_folders.sort()
     return lts_folders[-1][1]
 
 
-def version_finder_for(distro_info):
+def version_finder_for(distro_info, release=None):
     if distro_info.get("version_scheme") == "ubuntu_lts":
-        return find_latest_lts_folder
+        return lambda url: find_latest_lts_folder(url, release=release)
     suffix = distro_info.get("version_suffix", "")
-    return lambda url: find_latest_version_folder(url, suffix=suffix)
+    return lambda url: find_latest_version_folder(url, suffix=suffix, release=release)
 
 
 def find_latest_version(name, discovery_urls, finder):
