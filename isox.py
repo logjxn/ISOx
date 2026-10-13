@@ -711,8 +711,8 @@ def verify_local_iso(name, distro_info, filepath, checksum_base):
         )
     except ValueError as e:
         raise ISOxError(
-            f"{e} It may be from an older release, or renamed since it was "
-            f"downloaded."
+            f"{e} It may be from an older release, renamed since it was "
+            f"downloaded, or belong to a different distro entry."
         ) from e
 
     if matches:

@@ -55,8 +55,8 @@ python isox.py mint --release 22        # newest 22.x
 
 Verify an ISO you already have (from a browser, a torrent, a USB stick):
 ```bash
-python isox.py fedora --verify ~/Downloads/Fedora-Workstation-Live-44-1.7.x86_64.iso
-python isox.py ubuntu --release 24.04 --verify ubuntu-24.04.3-desktop-amd64.iso
+python isox.py fedora --release 44 --verify ~/Downloads/Fedora-Workstation-Live-44-1.7.x86_64.iso
+python isox.py ubuntu --release 24.04 --verify ubuntu-24.04.5.1-desktop-amd64.iso
 ```
 
 Download and verify a distro:
@@ -220,14 +220,17 @@ archive (Rocky & Fedora for example) can't serve them through `--release`.
 ### Verifying an existing ISO
 
 `--verify FILE` skips the download. It fetches the checksum file from
-`checksum_base` and looks up the file by its own name, without being affected by out
-of date versions.
+`checksum_base` and looks up the file by its own name, so a browser download named after its release works
+the same as one ISOx saved.
 
 - Version discovery still runs, so an ISO from an older release needs `--release` as well.
 - A renamed file can't be looked up, it has to match the original downloaded name.
 - The file is never renamed or moved, even if there's a mismatch.
 - Distros without a `checksum_base` refuse the flag, since a mirror's own checksum can't
   vouch for a file.
+  - The distro has to still publish a checksum for that exact file. Superseded point
+  releases (an Ubuntu 24.04.3 ISO once 24.04.5 is out) may drop out of the checksum
+  file and can no longer be verified.
 
 ### Checksum parsing
 
