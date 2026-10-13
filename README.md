@@ -228,7 +228,7 @@ the same as one ISOx saved.
 - The file is never renamed or moved, even if there's a mismatch.
 - Distros without a `checksum_base` refuse the flag, since a mirror's own checksum can't
   vouch for a file.
-  - The distro has to still publish a checksum for that exact file. Superseded point
+- The distro has to still publish a checksum for that exact file. Superseded point
   releases (an Ubuntu 24.04.3 ISO once 24.04.5 is out) may drop out of the checksum
   file and can no longer be verified.
 
