@@ -53,6 +53,12 @@ python isox.py proxmox --release 8
 python isox.py mint --release 22        # newest 22.x
 ```
 
+Verify an ISO you already have (from a browser, a torrent, a USB stick):
+```bash
+python isox.py fedora --release 44 --verify ~/Downloads/Fedora-Workstation-Live-44-1.7.x86_64.iso
+python isox.py ubuntu --release 24.04 --verify ubuntu-24.04.5.1-desktop-amd64.iso
+```
+
 Download and verify a distro:
 ```bash
 python isox.py arch
@@ -61,18 +67,19 @@ python isox.py kali
 python isox.py alpine
 python isox.py mint
 python isox.py fedora
+python isox.py fedora-server
 python isox.py opensuse
 python isox.py gentoo
 python isox.py void
 python isox.py garuda
 python isox.py ubuntu
+python isox.py ubuntu-server
 python isox.py rocky
 python isox.py alma
 python isox.py cachyos
 python isox.py mageia
 python isox.py openmandriva
 python isox.py proxmox
-python isox.py ubuntu-server
 python isox.py zorin
 python isox.py centos-stream
 ```
@@ -99,6 +106,7 @@ Checksum matches, file is good.
 - **Live progress bar** - shows percentage and real-time throughput, and degrades to a plain byte counter if the server won't report a total size.
 - **Streamed downloads** - files are downloaded in large chunks (`requests` with `stream=True`), so multi-GB ISOs don't hog RAM.
 - **Failure quarantine** - an ISO that fails verification is renamed, so it can't be mistaken for a verified file.
+- **Verify existing ISOs** - `--verify` checks a file you already have against the distro's checksum, without downloading or renaming anything.
 - **Path-traversal protection** - filenames discovered from remote HTML listings are validated before ever being used in a URL or local file path.
 
 ## How it works
@@ -200,7 +208,7 @@ into every `{version}` placeholder.
 only entries whose version starts with the requested numbers are kept. `22` matches
 `22.1` and `22.3` but not `220`. The newest of those wins.
 
-- **Version folders** (Ubuntu, Ubuntu Server, Fedora, Rocky, Alma, Mint, Mageia, Zorin,
+- **Version folders** (Ubuntu, Ubuntu Server, Fedora, Fedora Server, Rocky, Alma, Mint, Mageia, Zorin,
   CentOS Stream) filter the folder names. `ubuntu` still only accepts LTS releases.
 - **Flat directories** (Proxmox) filter filenames using `release_filename_prefix`.
 - **Rolling distros** and distros whose mirrors only serve the current release refuse the
@@ -208,6 +216,21 @@ only entries whose version starts with the requested numbers are kept. `22` matc
 
 A release must still be on the configured mirrors. Distros that move old releases to an
 archive (Rocky & Fedora for example) can't serve them through `--release`.
+
+### Verifying an existing ISO
+
+`--verify FILE` skips the download. It fetches the checksum file from
+`checksum_base` and looks up the file by its own name, so a browser download named after its release works
+the same as one ISOx saved.
+
+- Version discovery still runs, so an ISO from an older release needs `--release` as well.
+- A renamed file can't be looked up, it has to match the original downloaded name.
+- The file is never renamed or moved, even if there's a mismatch.
+- Distros without a `checksum_base` refuse the flag, since a mirror's own checksum can't
+  vouch for a file.
+  - The distro has to still publish a checksum for that exact file. Superseded point
+  releases (an Ubuntu 24.04.3 ISO once 24.04.5 is out) may drop out of the checksum
+  file and can no longer be verified.
 
 ### Checksum parsing
 
@@ -235,6 +258,8 @@ The tool will also handle size mismatches and stale part files.
 
 The checksum file is fetched new on every run, from `checksum_base` and compared with `hmac.compare_digest`. A hash mismatch
 renames the ISO to `<filename>.FAILED`; a missing entry renames it to `<filename>.UNVERIFIED`.
+
+`--verify` reports the same result but leaves the file as is.
 
 ## What verification does and doesn't cover
 

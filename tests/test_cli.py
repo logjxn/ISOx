@@ -592,3 +592,264 @@ def test_release_missing_from_a_flat_directory_names_itself(
 
     assert excinfo.value.code == 1
     assert "couldn't find release 7 for 'flat'" in capsys.readouterr().out
+
+
+def test_release_folder_with_no_matching_iso_names_the_release(
+    tmp_path, monkeypatch, capsys
+):
+    # Fedora keeps old release folders listed after emptying them, so version
+    # discovery succeeds but filename discovery comes up empty.
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.rstrip("/") == "https://mirror.test":
+            return FakeResponse(text='<a href="9/">a</a><a href="10/">b</a>')
+        return FakeResponse(text='<a href="README">a</a>')
+
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=HTML_FOLDER_CONFIG,
+        argv=("isox.py", "folder", "--release", "9"),
+    )
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "couldn't find release 9 for 'folder'" in capsys.readouterr().out
+
+
+def test_checksum_base_that_is_also_a_mirror_is_only_tried_once(
+    tmp_path, monkeypatch, capsys
+):
+    # Fedora and Proxmox list their own host as a mirror and as checksum_base
+    config = {
+        "flat": dict(FLAT_CONFIG["flat"], checksum_base="https://mirror.test/iso/")
+    }
+    listing_requests = []
+
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        listing_requests.append(url)
+        return FakeResponse(text="")
+
+    setup_repo(tmp_path, monkeypatch, config=config, argv=("isox.py", "flat"))
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert listing_requests == ["https://mirror.test/iso/"]
+    assert "any of its 1 sources" in capsys.readouterr().out
+
+
+def test_unreachable_checksum_stops_before_the_download(tmp_path, monkeypatch, capsys):
+    iso_requests = []
+
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.endswith("sha256sums.txt"):
+            return FakeResponse(status_code=404)
+        iso_requests.append(headers.get("Range"))
+        return FakeResponse(
+            200, {"Content-Length": str(len(ISO_BODY)), "ETag": '"v1"'}, ISO_BODY
+        )
+
+    setup_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "couldn't fetch the checksum" in capsys.readouterr().out
+    # Only the ranged throughput sample, never the full download
+    assert iso_requests == [f"bytes=0-{2_000_000 - 1}"]
+    assert not (tmp_path / "ISOx_Downloads" / "test.iso").exists()
+
+
+VERSIONED_WITH_BASE = {
+    "ubuntu": dict(
+        UBUNTU_CONFIG["ubuntu"], checksum_base="https://mirror.test/{version}/"
+    )
+}
+
+
+def recording_get(checksum_text, seen):
+    """Serves only the checksum file. Anything else would mean --verify downloaded."""
+
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        seen.append(url)
+        if url.endswith(("sha256sums.txt", "SHA256SUMS")):
+            return FakeResponse(text=checksum_text)
+        raise AssertionError(f"--verify requested {url}")
+
+    return fake_get
+
+
+def local_iso(tmp_path, name="test.iso"):
+    iso = tmp_path / "Downloads" / name
+    iso.parent.mkdir()
+    iso.write_bytes(ISO_BODY)
+    return iso
+
+
+def test_verify_checks_a_local_file_against_checksum_base(
+    tmp_path, monkeypatch, capsys
+):
+    iso = local_iso(tmp_path)
+    seen = []
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=CHECKSUM_BASE_CONFIG,
+        argv=("isox.py", "testdistro", "--verify", str(iso)),
+    )
+    monkeypatch.setattr(
+        isox.requests, "get", recording_get(f"{ISO_SHA256}  test.iso\n", seen)
+    )
+
+    isox.run()
+
+    assert "Checksum matches, file is good." in capsys.readouterr().out
+    assert seen == ["https://canonical.test/iso/sha256sums.txt"]
+    assert iso.read_bytes() == ISO_BODY
+    assert not (tmp_path / "ISOx_Downloads").exists()
+
+
+def test_verify_mismatch_exits_1_and_leaves_the_file_alone(
+    tmp_path, monkeypatch, capsys
+):
+    iso = local_iso(tmp_path)
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=CHECKSUM_BASE_CONFIG,
+        argv=("isox.py", "testdistro", "--verify", str(iso)),
+    )
+    monkeypatch.setattr(
+        isox.requests, "get", recording_get(f"{'0' * 64}  test.iso\n", [])
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "checksum mismatch" in capsys.readouterr().out
+    # Not ours to quarantine
+    assert iso.read_bytes() == ISO_BODY
+    assert sorted(p.name for p in iso.parent.iterdir()) == ["test.iso"]
+
+
+def test_verify_looks_up_the_local_filename_not_the_configured_one(
+    tmp_path, monkeypatch, capsys
+):
+    # A browser download is named after the release, not the config's iso_filename
+    iso = local_iso(tmp_path, name="test-2026.10.01.iso")
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=CHECKSUM_BASE_CONFIG,
+        argv=("isox.py", "testdistro", "--verify", str(iso)),
+    )
+    monkeypatch.setattr(
+        isox.requests,
+        "get",
+        recording_get(f"{'0' * 64}  test.iso\n{ISO_SHA256}  test-2026.10.01.iso\n", []),
+    )
+
+    isox.run()
+
+    assert "Checksum matches, file is good." in capsys.readouterr().out
+
+
+def test_verify_file_missing_from_the_checksum_file_exits_1(
+    tmp_path, monkeypatch, capsys
+):
+    iso = local_iso(tmp_path, name="renamed.iso")
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=CHECKSUM_BASE_CONFIG,
+        argv=("isox.py", "testdistro", "--verify", str(iso)),
+    )
+    monkeypatch.setattr(
+        isox.requests, "get", recording_get(f"{ISO_SHA256}  test.iso\n", [])
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "No checksum entry found for 'renamed.iso'" in capsys.readouterr().out
+    assert iso.read_bytes() == ISO_BODY
+
+
+def test_verify_honours_release_when_finding_the_checksum(
+    tmp_path, monkeypatch, capsys
+):
+    iso = local_iso(tmp_path)
+    seen = []
+
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.rstrip("/") == "https://mirror.test":
+            return FakeResponse(text='<a href="26.04/">a</a><a href="24.04/">b</a>')
+        return recording_get(f"{ISO_SHA256}  test.iso\n", seen)(url)
+
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=VERSIONED_WITH_BASE,
+        argv=("isox.py", "ubuntu", "--release", "24.04", "--verify", str(iso)),
+    )
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    isox.run()
+
+    assert seen == ["https://mirror.test/24.04/SHA256SUMS"]
+    assert "Checksum matches, file is good." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "config, use_real_file, message",
+    [
+        (VERSIONED_WITH_BASE, False, "nothing to verify"),
+        (UBUNTU_CONFIG, True, "no checksum_base"),
+    ],
+)
+def test_verify_is_refused_before_any_request(
+    tmp_path, monkeypatch, capsys, config, use_real_file, message
+):
+    # Versioned configs, so a check that ran too late would show up as a
+    # version-discovery request
+    target = local_iso(tmp_path) if use_real_file else tmp_path / "nope.iso"
+    calls = []
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=config,
+        argv=("isox.py", "ubuntu", "--verify", str(target)),
+    )
+    monkeypatch.setattr(isox.requests, "get", lambda *a, **k: calls.append(a))
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert calls == []
+    assert message in capsys.readouterr().out
+
+
+def test_verify_and_output_dir_cant_be_combined(tmp_path, monkeypatch, capsys):
+    iso = local_iso(tmp_path)
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=CHECKSUM_BASE_CONFIG,
+        argv=("isox.py", "testdistro", "--verify", str(iso), "--output-dir", "x"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.run()
+
+    assert excinfo.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err

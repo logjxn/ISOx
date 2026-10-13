@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.5.0"
+__version__ = "3.6.0"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -61,6 +61,17 @@ def check_release_supported(name, distro_info):
         raise ISOxError(
             f"'{name}' doesn't support --release (its mirrors only serve the current release)."
         )
+
+
+def check_verify_supported(name, distro_info, filepath):
+    if not distro_info.get("checksum_base"):
+        raise ISOxError(
+            f"'{name}' has no checksum_base, so --verify has no trusted host to fetch a checksum from."
+        )
+    if not os.path.isfile(filepath):
+        raise ISOxError(f"'{filepath}' isn't a file, so there's nothing to verify.")
+    if is_unsafe_filename(os.path.basename(filepath)):
+        raise ISOxError(f"filename looks unsafe: '{os.path.basename(filepath)}'")
 
 
 def user_config_dir():
@@ -304,7 +315,7 @@ def resolve_iso_filename(name, distro_info, sources, checksum_filename, release=
             pass
         print(f"Couldn't discover an ISO filename via {source}")
 
-    if release is not None and "release_filename_prefix" in distro_info:
+    if release is not None:
         raise ISOxError(
             f"couldn't find release {release} for '{name}' in any of its "
             f"{len(sources)} sources. It may not exist, or may have been removed."
@@ -656,6 +667,62 @@ def find_fastest_mirror_by_throughput(mirror_urls):
     return fastest
 
 
+def fetch_hash_lookup(name, distro_info, checksum_source, iso_filename):
+    checksum_filename = resolve_checksum_filename(
+        name,
+        distro_info,
+        checksum_source,
+        distro_info["checksum_filename"],
+        iso_filename,
+    )
+    if is_unsafe_filename(checksum_filename):
+        raise ISOxError(
+            f"discovered checksum filename looks unsafe: '{checksum_filename}'"
+        )
+
+    checksum_url = f"{checksum_source}/{checksum_filename}"
+    try:
+        response = requests.get(checksum_url, timeout=10, headers=request_headers())
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise ISOxError(
+            f"couldn't fetch the checksum for '{name}' from {checksum_url} ({e}). "
+            f"Without it the ISO can't be verified."
+        ) from e
+    return parse_checksum_file(
+        response.text,
+        distro_info.get("checksum_format", "multi"),
+        distro_info["hash_algo"],
+        iso_filename,
+    )
+
+
+def verify_local_iso(name, distro_info, filepath, checksum_base):
+    """Check an ISO that's already on disk"""
+    # The checksum file lists ISOs by name, so the local input is the key
+    iso_filename = os.path.basename(filepath)
+    checksum_source = checksum_base.rstrip("/")
+    hash_lookup = fetch_hash_lookup(name, distro_info, checksum_source, iso_filename)
+
+    print(f"Verifying {iso_filename} against the checksum at {checksum_source} ...")
+    try:
+        matches = verify_checksum(
+            filepath, iso_filename, hash_lookup, distro_info["hash_algo"]
+        )
+    except ValueError as e:
+        raise ISOxError(
+            f"{e} It may be from an older release, renamed since it was "
+            f"downloaded, or belong to a different distro entry."
+        ) from e
+
+    if matches:
+        print("Checksum matches, file is good.")
+        return
+    print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
+    print("The file was left as it is, since ISOx didn't download it.")
+    sys.exit(1)
+
+
 def run():
     try:
         with open(DISTROS_PATH, "r") as f:
@@ -682,10 +749,17 @@ def run():
     parser.add_argument(
         "--list", action="store_true", help="List available distros and exit"
     )
-    parser.add_argument(
+    # Verifying a file on disk downloads nothing, so it has no output directory
+    target = parser.add_mutually_exclusive_group()
+    target.add_argument(
         "--output-dir",
         default=DEFAULT_DOWNLOAD_DIR,
         help=f"Where to save the ISO (default: ./{DEFAULT_DOWNLOAD_DIR})",
+    )
+    target.add_argument(
+        "--verify",
+        metavar="FILE",
+        help="Verify an ISO you already have instead of downloading one",
     )
     parser.add_argument(
         "--release",
@@ -710,13 +784,13 @@ def run():
     validate_distro_config(args.distro, distro_info)
     if args.release is not None:
         check_release_supported(args.distro, distro_info)
+    if args.verify is not None:
+        check_verify_supported(args.distro, distro_info, args.verify)
 
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]
     hash_algo = distro_info["hash_algo"]
     checksum_base = distro_info.get("checksum_base")
-
-    os.makedirs(args.output_dir, exist_ok=True)
 
     # For distros that have no stable/latest alias, the current version needs to be discovered before continuing
     if distro_info.get("version_directory", False):
@@ -732,7 +806,16 @@ def run():
         elif args.release != latest_version:
             print(f"Resolved release {args.release} to {latest_version}")
 
-    discovery_sources = ([checksum_base] if checksum_base else []) + mirrors
+    if args.verify is not None:
+        verify_local_iso(args.distro, distro_info, args.verify, checksum_base)
+        return
+
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # checksum_base is often one of the mirrors too, and shouldn't be tried twice
+    discovery_sources = list(
+        dict.fromkeys(([checksum_base] if checksum_base else []) + mirrors)
+    )
 
     iso_filename = resolve_iso_filename(
         args.distro, distro_info, discovery_sources, checksum_filename, args.release
@@ -749,29 +832,8 @@ def run():
 
     checksum_source = checksum_base.rstrip("/") if checksum_base else base
 
-    checksum_filename_resolved = resolve_checksum_filename(
-        args.distro, distro_info, checksum_source, checksum_filename, iso_filename
-    )
-
-    if is_unsafe_filename(checksum_filename_resolved):
-        raise ISOxError(
-            f"discovered checksum filename looks unsafe: '{checksum_filename_resolved}'"
-        )
-
-    checksum_url = f"{checksum_source}/{checksum_filename_resolved}"
-    try:
-        response = requests.get(checksum_url, timeout=10, headers=request_headers())
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise ISOxError(
-            f"couldn't fetch the checksum for '{args.distro}' from {checksum_url} ({e}). "
-            f"Without it the ISO can't be verified, so nothing was downloaded."
-        ) from e
-    hash_lookup = parse_checksum_file(
-        response.text,
-        distro_info.get("checksum_format", "multi"),
-        hash_algo,
-        iso_filename,
+    hash_lookup = fetch_hash_lookup(
+        args.distro, distro_info, checksum_source, iso_filename
     )
 
     destination_path = os.path.join(args.output_dir, iso_filename)

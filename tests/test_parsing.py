@@ -240,6 +240,7 @@ def test_shipped_iso_names_survive_the_default_excludes():
         "ubuntu-26.04.1-live-server-amd64.iso",
         "Zorin-OS-18.1-Core-64-bit.iso",
         "CentOS-Stream-10-20261006.0-x86_64-boot.iso",
+        "Fedora-Server-dvd-x86_64-44-1.7.iso",
     ):
         assert isox.filename_matches(name, [], isox.DEFAULT_FILENAME_EXCLUDES), name
 

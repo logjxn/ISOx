@@ -83,6 +83,25 @@
         "hash_algo": "sha256",
         "iso_filename_contains": ["Workstation", "x86_64"]
     },
+        "fedora-server": {
+        "mirrors": [
+            "https://dl.fedoraproject.org/pub/fedora/linux/releases/{version}/Server/x86_64/iso/",
+            "https://mirror.cs.princeton.edu/pub/mirrors/fedora/linux/releases/{version}/Server/x86_64/iso/",
+            "https://mirror.arizona.edu/fedora/linux/releases/{version}/Server/x86_64/iso/"
+        ],
+        "version_directory": true,
+        "version_discovery_url": [
+            "https://dl.fedoraproject.org/pub/fedora/linux/releases/",
+            "https://mirror.arizona.edu/fedora/linux/releases/"
+        ],
+        "checksum_base": "https://dl.fedoraproject.org/pub/fedora/linux/releases/{version}/Server/x86_64/iso/",
+        "checksum_filename": "CHECKSUM",
+        "checksum_discovery_method": "html_scan",
+        "checksum_format": "bsd",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["Server", "x86_64", "dvd"]
+    },
     "opensuse" : {
         "mirrors" : [
             "https://download.opensuse.org/tumbleweed/iso/"
@@ -149,6 +168,24 @@
         "discovery_method": "html_scan",
         "hash_algo": "sha256",
         "iso_filename_contains": ["desktop", "amd64"]
+    },
+    "ubuntu-server": {
+        "mirrors": [
+            "https://releases.ubuntu.com/{version}/",
+            "https://mirror.arizona.edu/ubuntu-releases/{version}/",
+            "https://ubuntu-releases.mirrorservice.org/releases/{version}/"
+        ],
+        "version_directory": true,
+        "version_discovery_url": [
+            "https://releases.ubuntu.com/",
+            "https://mirror.arizona.edu/ubuntu-releases/"
+        ],
+        "version_scheme": "ubuntu_lts",
+        "checksum_base": "https://releases.ubuntu.com/{version}/",
+        "checksum_filename": "SHA256SUMS",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["live-server", "amd64"]
     },
     "rocky": {
         "mirrors": [
@@ -238,24 +275,6 @@
         "iso_filename_contains": ["proxmox-ve_"],
         "iso_filename_excludes": ["arm64"],
         "release_filename_prefix": "proxmox-ve_"
-    },
-    "ubuntu-server": {
-        "mirrors": [
-            "https://releases.ubuntu.com/{version}/",
-            "https://mirror.arizona.edu/ubuntu-releases/{version}/",
-            "https://ubuntu-releases.mirrorservice.org/releases/{version}/"
-        ],
-        "version_directory": true,
-        "version_discovery_url": [
-            "https://releases.ubuntu.com/",
-            "https://mirror.arizona.edu/ubuntu-releases/"
-        ],
-        "version_scheme": "ubuntu_lts",
-        "checksum_base": "https://releases.ubuntu.com/{version}/",
-        "checksum_filename": "SHA256SUMS",
-        "discovery_method": "html_scan",
-        "hash_algo": "sha256",
-        "iso_filename_contains": ["live-server", "amd64"]
     },
     "zorin": {
         "mirrors": [
