@@ -656,6 +656,36 @@ def find_fastest_mirror_by_throughput(mirror_urls):
     return fastest
 
 
+def fetch_hash_lookup(name, distro_info, checksum_source, iso_filename):
+    checksum_filename = resolve_checksum_filename(
+        name,
+        distro_info,
+        checksum_source,
+        distro_info["checksum_filename"],
+        iso_filename,
+    )
+    if is_unsafe_filename(checksum_filename):
+        raise ISOxError(
+            f"discovered checksum filename looks unsafe: '{checksum_filename}'"
+        )
+
+    checksum_url = f"{checksum_source}/{checksum_filename}"
+    try:
+        response = requests.get(checksum_url, timeout=10, headers=request_headers())
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise ISOxError(
+            f"couldn't fetch the checksum for '{name}' from {checksum_url} ({e}). "
+            f"Without it the ISO can't be verified."
+        ) from e
+    return parse_checksum_file(
+        response.text,
+        distro_info.get("checksum_format", "multi"),
+        distro_info["hash_algo"],
+        iso_filename,
+    )
+
+
 def run():
     try:
         with open(DISTROS_PATH, "r") as f:
@@ -752,29 +782,8 @@ def run():
 
     checksum_source = checksum_base.rstrip("/") if checksum_base else base
 
-    checksum_filename_resolved = resolve_checksum_filename(
-        args.distro, distro_info, checksum_source, checksum_filename, iso_filename
-    )
-
-    if is_unsafe_filename(checksum_filename_resolved):
-        raise ISOxError(
-            f"discovered checksum filename looks unsafe: '{checksum_filename_resolved}'"
-        )
-
-    checksum_url = f"{checksum_source}/{checksum_filename_resolved}"
-    try:
-        response = requests.get(checksum_url, timeout=10, headers=request_headers())
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise ISOxError(
-            f"couldn't fetch the checksum for '{args.distro}' from {checksum_url} ({e}). "
-            f"Without it the ISO can't be verified, so nothing was downloaded."
-        ) from e
-    hash_lookup = parse_checksum_file(
-        response.text,
-        distro_info.get("checksum_format", "multi"),
-        hash_algo,
-        iso_filename,
+    hash_lookup = fetch_hash_lookup(
+        args.distro, distro_info, checksum_source, iso_filename
     )
 
     destination_path = os.path.join(args.output_dir, iso_filename)

@@ -641,3 +641,27 @@ def test_checksum_base_that_is_also_a_mirror_is_only_tried_once(
     assert excinfo.value.code == 1
     assert listing_requests == ["https://mirror.test/iso/"]
     assert "any of its 1 sources" in capsys.readouterr().out
+
+
+def test_unreachable_checksum_stops_before_the_download(tmp_path, monkeypatch, capsys):
+    iso_requests = []
+
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.endswith("sha256sums.txt"):
+            return FakeResponse(status_code=404)
+        iso_requests.append(headers.get("Range"))
+        return FakeResponse(
+            200, {"Content-Length": str(len(ISO_BODY)), "ETag": '"v1"'}, ISO_BODY
+        )
+
+    setup_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "couldn't fetch the checksum" in capsys.readouterr().out
+    # Only the ranged throughput sample, never the full download
+    assert iso_requests == [f"bytes=0-{2_000_000 - 1}"]
+    assert not (tmp_path / "ISOx_Downloads" / "test.iso").exists()
