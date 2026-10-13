@@ -598,7 +598,7 @@ def test_release_folder_with_no_matching_iso_names_the_release(
     tmp_path, monkeypatch, capsys
 ):
     # Fedora keeps old release folders listed after emptying them, so version
-    # discovery succeeds and it's filename discovery that comes up empty.
+    # discovery succeeds but filename discovery comes up empty.
     def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
         if url.rstrip("/") == "https://mirror.test":
             return FakeResponse(text='<a href="9/">a</a><a href="10/">b</a>')
@@ -617,3 +617,27 @@ def test_release_folder_with_no_matching_iso_names_the_release(
 
     assert excinfo.value.code == 1
     assert "couldn't find release 9 for 'folder'" in capsys.readouterr().out
+
+
+def test_checksum_base_that_is_also_a_mirror_is_only_tried_once(
+    tmp_path, monkeypatch, capsys
+):
+    # Fedora and Proxmox list their own host as a mirror and as checksum_base
+    config = {
+        "flat": dict(FLAT_CONFIG["flat"], checksum_base="https://mirror.test/iso/")
+    }
+    listing_requests = []
+
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        listing_requests.append(url)
+        return FakeResponse(text="")
+
+    setup_repo(tmp_path, monkeypatch, config=config, argv=("isox.py", "flat"))
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert listing_requests == ["https://mirror.test/iso/"]
+    assert "any of its 1 sources" in capsys.readouterr().out

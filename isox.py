@@ -732,7 +732,10 @@ def run():
         elif args.release != latest_version:
             print(f"Resolved release {args.release} to {latest_version}")
 
-    discovery_sources = ([checksum_base] if checksum_base else []) + mirrors
+    # checksum_base is often one of the mirrors too, and shouldn't be tried twice
+    discovery_sources = list(
+        dict.fromkeys(([checksum_base] if checksum_base else []) + mirrors)
+    )
 
     iso_filename = resolve_iso_filename(
         args.distro, distro_info, discovery_sources, checksum_filename, args.release
