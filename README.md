@@ -14,6 +14,8 @@ Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
                                           (fastest mirror)  (distro's own host)
 ```
 
+Already have an ISO? isox <distro> --verify FILE checks it against the distro’s own checksum without downloading anything.
+
 ## Why
 
 I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. This poses an integrity risk (modified ISOs, corruption, etc.), so I built a tool that automates the whole pipeline and makes verification simple.
