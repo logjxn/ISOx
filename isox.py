@@ -304,7 +304,7 @@ def resolve_iso_filename(name, distro_info, sources, checksum_filename, release=
             pass
         print(f"Couldn't discover an ISO filename via {source}")
 
-    if release is not None and "release_filename_prefix" in distro_info:
+    if release is not None:
         raise ISOxError(
             f"couldn't find release {release} for '{name}' in any of its "
             f"{len(sources)} sources. It may not exist, or may have been removed."

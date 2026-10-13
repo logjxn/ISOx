@@ -592,3 +592,28 @@ def test_release_missing_from_a_flat_directory_names_itself(
 
     assert excinfo.value.code == 1
     assert "couldn't find release 7 for 'flat'" in capsys.readouterr().out
+
+
+def test_release_folder_with_no_matching_iso_names_the_release(
+    tmp_path, monkeypatch, capsys
+):
+    # Fedora keeps old release folders listed after emptying them, so version
+    # discovery succeeds and it's filename discovery that comes up empty.
+    def fake_get(url, stream=False, timeout=None, headers=None, **kwargs):
+        if url.rstrip("/") == "https://mirror.test":
+            return FakeResponse(text='<a href="9/">a</a><a href="10/">b</a>')
+        return FakeResponse(text='<a href="README">a</a>')
+
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=HTML_FOLDER_CONFIG,
+        argv=("isox.py", "folder", "--release", "9"),
+    )
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "couldn't find release 9 for 'folder'" in capsys.readouterr().out
