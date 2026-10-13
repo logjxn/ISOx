@@ -67,18 +67,19 @@ python isox.py kali
 python isox.py alpine
 python isox.py mint
 python isox.py fedora
+python isox.py fedora-server
 python isox.py opensuse
 python isox.py gentoo
 python isox.py void
 python isox.py garuda
 python isox.py ubuntu
+python isox.py ubuntu-server
 python isox.py rocky
 python isox.py alma
 python isox.py cachyos
 python isox.py mageia
 python isox.py openmandriva
 python isox.py proxmox
-python isox.py ubuntu-server
 python isox.py zorin
 python isox.py centos-stream
 ```
@@ -207,7 +208,7 @@ into every `{version}` placeholder.
 only entries whose version starts with the requested numbers are kept. `22` matches
 `22.1` and `22.3` but not `220`. The newest of those wins.
 
-- **Version folders** (Ubuntu, Ubuntu Server, Fedora, Rocky, Alma, Mint, Mageia, Zorin,
+- **Version folders** (Ubuntu, Ubuntu Server, Fedora, Fedora Server, Rocky, Alma, Mint, Mageia, Zorin,
   CentOS Stream) filter the folder names. `ubuntu` still only accepts LTS releases.
 - **Flat directories** (Proxmox) filter filenames using `release_filename_prefix`.
 - **Rolling distros** and distros whose mirrors only serve the current release refuse the
