@@ -63,6 +63,17 @@ def check_release_supported(name, distro_info):
         )
 
 
+def check_verify_supported(name, distro_info, filepath):
+    if not distro_info.get("checksum_base"):
+        raise ISOxError(
+            f"'{name}' has no checksum_base, so --verify has no trusted host to fetch a checksum from."
+        )
+    if not os.path.isfile(filepath):
+        raise ISOxError(f"'{filepath}' isn't a file, so there's nothing to verify.")
+    if is_unsafe_filename(os.path.basename(filepath)):
+        raise ISOxError(f"filename looks unsafe: '{os.path.basename(filepath)}'")
+
+
 def user_config_dir():
     """Per-user config directory, following the platform convention."""
     if os.name == "nt":
@@ -686,6 +697,32 @@ def fetch_hash_lookup(name, distro_info, checksum_source, iso_filename):
     )
 
 
+def verify_local_iso(name, distro_info, filepath, checksum_base):
+    """Check an ISO that's already on disk"""
+    # The checksum file lists ISOs by name, so the local input is the key
+    iso_filename = os.path.basename(filepath)
+    checksum_source = checksum_base.rstrip("/")
+    hash_lookup = fetch_hash_lookup(name, distro_info, checksum_source, iso_filename)
+
+    print(f"Verifying {iso_filename} against the checksum at {checksum_source} ...")
+    try:
+        matches = verify_checksum(
+            filepath, iso_filename, hash_lookup, distro_info["hash_algo"]
+        )
+    except ValueError as e:
+        raise ISOxError(
+            f"{e} It may be from an older release, or renamed since it was "
+            f"downloaded."
+        ) from e
+
+    if matches:
+        print("Checksum matches, file is good.")
+        return
+    print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
+    print("The file was left as it is, since ISOx didn't download it.")
+    sys.exit(1)
+
+
 def run():
     try:
         with open(DISTROS_PATH, "r") as f:
@@ -712,10 +749,17 @@ def run():
     parser.add_argument(
         "--list", action="store_true", help="List available distros and exit"
     )
-    parser.add_argument(
+    # Verifying a file on disk downloads nothing, so it has no output directory
+    target = parser.add_mutually_exclusive_group()
+    target.add_argument(
         "--output-dir",
         default=DEFAULT_DOWNLOAD_DIR,
         help=f"Where to save the ISO (default: ./{DEFAULT_DOWNLOAD_DIR})",
+    )
+    target.add_argument(
+        "--verify",
+        metavar="FILE",
+        help="Verify an ISO you already have instead of downloading one",
     )
     parser.add_argument(
         "--release",
@@ -740,13 +784,13 @@ def run():
     validate_distro_config(args.distro, distro_info)
     if args.release is not None:
         check_release_supported(args.distro, distro_info)
+    if args.verify is not None:
+        check_verify_supported(args.distro, distro_info, args.verify)
 
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]
     hash_algo = distro_info["hash_algo"]
     checksum_base = distro_info.get("checksum_base")
-
-    os.makedirs(args.output_dir, exist_ok=True)
 
     # For distros that have no stable/latest alias, the current version needs to be discovered before continuing
     if distro_info.get("version_directory", False):
@@ -761,6 +805,12 @@ def run():
             print(f"Discovered latest version: {latest_version}")
         elif args.release != latest_version:
             print(f"Resolved release {args.release} to {latest_version}")
+
+    if args.verify is not None:
+        verify_local_iso(args.distro, distro_info, args.verify, checksum_base)
+        return
+
+    os.makedirs(args.output_dir, exist_ok=True)
 
     # checksum_base is often one of the mirrors too, and shouldn't be tried twice
     discovery_sources = list(
