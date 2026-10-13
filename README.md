@@ -14,7 +14,7 @@ Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
                                           (fastest mirror)  (distro's own host)
 ```
 
-Already have an ISO? isox <distro> --verify FILE checks it against the distro’s own checksum without downloading anything.
+Already have an ISO? `isox <distro> --verify FILE` checks it against the distro’s own checksum without downloading anything.
 
 ## Why
 
