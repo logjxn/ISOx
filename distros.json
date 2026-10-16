@@ -276,6 +276,19 @@
         "iso_filename_excludes": ["arm64"],
         "release_filename_prefix": "proxmox-ve_"
     },
+    "proxmox-backup-server": {
+        "mirrors": [
+        "https://enterprise.proxmox.com/iso/",
+        "https://na.cdn.proxmox.com/iso/"
+        ],
+        "checksum_base": "https://enterprise.proxmox.com/iso/",
+        "checksum_filename": "SHA256SUMS",
+        "discovery_method": "html_scan",
+        "hash_algo": "sha256",
+        "iso_filename_contains": ["proxmox-backup-server_"],
+        "iso_filename_excludes": ["arm64"],
+        "release_filename_prefix": "proxmox-backup-server_"
+   },
     "zorin": {
         "mirrors": [
             "https://plug-mirror.rcac.purdue.edu/zorin-iso/{version}/",

@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.6.0"
+__version__ = "3.7.0"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -807,7 +807,11 @@ def run():
             print(f"Resolved release {args.release} to {latest_version}")
 
     if args.verify is not None:
-        verify_local_iso(args.distro, distro_info, args.verify, checksum_base)
+        try:
+            verify_local_iso(args.distro, distro_info, args.verify, checksum_base)
+        except KeyboardInterrupt:
+            print("\nInterrupted. Nothing was downloaded, the file was left as it is.")
+            sys.exit(130)
         return
 
     os.makedirs(args.output_dir, exist_ok=True)

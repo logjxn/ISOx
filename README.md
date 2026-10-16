@@ -82,6 +82,7 @@ python isox.py cachyos
 python isox.py mageia
 python isox.py openmandriva
 python isox.py proxmox
+python isox.py proxmox-backup-server
 python isox.py zorin
 python isox.py centos-stream
 ```
