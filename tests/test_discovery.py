@@ -288,6 +288,18 @@ def test_unfiltered_listing_would_pick_the_release_candidate(monkeypatch):
     assert result == "alpine-extended-3.24.0_rc2-x86_64.iso"
 
 
+def test_default_excludes_ignore_case(monkeypatch):
+    # Without the case fix, 9.1-BETA outranks 9.0 and wins
+    serve_html(
+        monkeypatch,
+        listing("proxmox-ve_9.0-1.iso", "proxmox-ve_9.1-BETA-1.iso"),
+    )
+    result = isox.discover_via_html_listing(
+        "https://example.test/", ["proxmox-ve_"], isox.DEFAULT_FILENAME_EXCLUDES
+    )
+    assert result == "proxmox-ve_9.0-1.iso"
+
+
 def test_shipped_alpine_config_excludes_release_candidates(monkeypatch):
     serve_html(
         monkeypatch,

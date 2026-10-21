@@ -839,6 +839,30 @@ def test_verify_is_refused_before_any_request(
     assert message in capsys.readouterr().out
 
 
+FLAT_WITH_BASE = {
+    "flat": dict(FLAT_CONFIG["flat"], checksum_base="https://mirror.test/iso/")
+}
+
+
+def test_release_with_verify_on_a_flat_distro_is_refused(tmp_path, monkeypatch, capsys):
+    iso = local_iso(tmp_path, name="flat-ve_8.4-1.iso")
+    calls = []
+    setup_repo(
+        tmp_path,
+        monkeypatch,
+        config=FLAT_WITH_BASE,
+        argv=("isox.py", "flat", "--release", "8", "--verify", str(iso)),
+    )
+    monkeypatch.setattr(isox.requests, "get", lambda *a, **k: calls.append(a))
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert calls == []
+    assert "reads the release from the filename" in capsys.readouterr().out
+
+
 def test_verify_and_output_dir_cant_be_combined(tmp_path, monkeypatch, capsys):
     iso = local_iso(tmp_path)
     setup_repo(

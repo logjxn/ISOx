@@ -226,7 +226,10 @@ archive (Rocky & Fedora for example) can't serve them through `--release`.
 `checksum_base` and looks up the file by its own name, so a browser download named after its release works
 the same as one ISOx saved.
 
-- Version discovery still runs, so an ISO from an older release needs `--release` as well.
+- On distros with version folders, version discovery still runs, so an
+  ISO from an older release needs `--release` as well.
+- Flat-directory distros (ex. Proxmox) refuse `--release` with `--verify`, since the
+  filename already names the release.
 - A renamed file can't be looked up, it has to match the original downloaded name.
 - The file is never renamed or moved, even if there's a mismatch.
 - Distros without a `checksum_base` refuse the flag, since a mirror's own checksum can't

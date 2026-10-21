@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.7.0"
+__version__ = "3.7.1"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -211,8 +211,10 @@ def excluded_substrings_for(distro_info):
 
 
 def filename_matches(filename, required_substrings, excluded_substrings):
+    # Excludes ignore case, so "-beta" also catches "-Beta-" and "-BETA-"
+    lowered = filename.lower()
     return all(sub in filename for sub in required_substrings) and not any(
-        bad in filename for bad in excluded_substrings
+        bad.lower() in lowered for bad in excluded_substrings
     )
 
 
@@ -786,6 +788,12 @@ def run():
         check_release_supported(args.distro, distro_info)
     if args.verify is not None:
         check_verify_supported(args.distro, distro_info, args.verify)
+        # One folder holds every release, and the filename names the one you have
+        if args.release is not None and distro_info.get("release_filename_prefix"):
+            raise ISOxError(
+                f"'{args.distro}' keeps every release in one folder, so --verify "
+                f"reads the release from the filename. Drop --release."
+            )
 
     mirrors = distro_info["mirrors"]
     checksum_filename = distro_info["checksum_filename"]

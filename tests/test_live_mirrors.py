@@ -34,7 +34,7 @@ def resolve_everything_but_the_download(name, info):
         if checksum_base:
             checksum_base = checksum_base.format(version=version)
 
-    sources = ([checksum_base] if checksum_base else []) + mirrors
+    sources = list(dict.fromkeys(([checksum_base] if checksum_base else []) + mirrors))
     iso_filename = isox.resolve_iso_filename(
         name, info, sources, info["checksum_filename"]
     )
@@ -45,7 +45,11 @@ def resolve_everything_but_the_download(name, info):
     checksum_filename = isox.resolve_checksum_filename(
         name, info, checksum_source, info["checksum_filename"], iso_filename
     )
-    response = isox.requests.get(f"{checksum_source}/{checksum_filename}", timeout=30)
+    response = isox.requests.get(
+        f"{checksum_source}/{checksum_filename}",
+        timeout=30,
+        headers=isox.request_headers(),
+    )
     response.raise_for_status()
     hash_lookup = isox.parse_checksum_file(
         response.text,
