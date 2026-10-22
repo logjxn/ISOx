@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.7.1"
+__version__ = "3.7.2"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -406,6 +406,9 @@ def download_file(url, destination_path):
         # .part is bigger than server's file, causing issues
         if response.status_code == 416:
             response.close()
+            # With no .part there was no Range to refuse, so a retry can't help
+            if existing == 0:
+                raise ISOxError("the server refused the download (HTTP 416).")
             discard_part(part_path, meta_path)
             return download_file(url, destination_path)
 

@@ -143,6 +143,22 @@ def test_download_restarts_when_partial_is_larger_than_source(tmp_path, monkeypa
     assert server.ranges_seen == ["bytes=2000-", None]
 
 
+def test_download_gives_up_when_a_fresh_request_gets_416(tmp_path, monkeypatch):
+    ranges_seen = []
+
+    def always_416(url, headers=None, **kwargs):
+        ranges_seen.append((headers or {}).get("Range"))
+        return FakeResponse(416)
+
+    monkeypatch.setattr(isox.requests, "get", always_416)
+    (tmp_path / "arch.iso.part").write_bytes(BODY[:400])
+
+    with pytest.raises(isox.ISOxError, match="HTTP 416"):
+        isox.download_file(URL, str(tmp_path / "arch.iso"))
+
+    assert ranges_seen == ["bytes=400-", None]  # one fresh retry, then stop
+
+
 def test_download_restarts_when_server_ignores_range(tmp_path, monkeypatch):
     server = FakeServer(ignore_range=True)
     monkeypatch.setattr(isox.requests, "get", server.get)
