@@ -108,6 +108,28 @@ def test_missing_checksum_entry_quarantines_as_unverified(tmp_path, monkeypatch)
     assert (tmp_path / "ISOx_Downloads" / "test.iso.UNVERIFIED").exists()
 
 
+@pytest.mark.parametrize(
+    "error, exit_code", [(KeyboardInterrupt, 130), (PermissionError, 1)]
+)
+def test_stopped_verification_quarantines_as_unverified(
+    error, exit_code, tmp_path, monkeypatch
+):
+    setup_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(isox.requests, "get", router(f"{ISO_SHA256}  test.iso\n"))
+
+    def stopped(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(isox, "compute_hash", stopped)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == exit_code
+    assert (tmp_path / "ISOx_Downloads" / "test.iso.UNVERIFIED").exists()
+    assert not (tmp_path / "ISOx_Downloads" / "test.iso").exists()
+
+
 def test_list_flag_prints_distros(tmp_path, monkeypatch, capsys):
     setup_repo(tmp_path, monkeypatch, argv=("isox.py", "--list"))
 

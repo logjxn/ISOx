@@ -899,6 +899,15 @@ def run():
             f"Error: could not verify checksum ({e}). The ISO downloaded but was NOT verified."
         )
         print(f"Renamed to {quarantine}.")
+    except KeyboardInterrupt:
+        # Hashing stopped part way, so the ISO must not keep a name that looks verified
+        quarantine = quarantine_download(destination_path, ".UNVERIFIED")
+        print(f"\nInterrupted while verifying. Renamed to {quarantine}.")
+        sys.exit(130)
+    except OSError:
+        quarantine = quarantine_download(destination_path, ".UNVERIFIED")
+        print(f"Verification stopped. Renamed to {quarantine}.")
+        raise
     sys.exit(1)
 
 
