@@ -278,8 +278,8 @@
     },
     "proxmox-backup-server": {
         "mirrors": [
-        "https://enterprise.proxmox.com/iso/",
-        "https://na.cdn.proxmox.com/iso/"
+            "https://enterprise.proxmox.com/iso/",
+            "https://na.cdn.proxmox.com/iso/"
         ],
         "checksum_base": "https://enterprise.proxmox.com/iso/",
         "checksum_filename": "SHA256SUMS",
