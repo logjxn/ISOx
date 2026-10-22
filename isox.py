@@ -11,12 +11,16 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.7.1"
+__version__ = "3.7.2"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
 
 RELEASE_PATTERN = re.compile(r"[0-9]+(\.[0-9]+)*")
+
+# Filenames from a mirror may use only these characters. That refuses Windows
+# drive prefixes ("C:x.iso") and terminal control characters along with slashes.
+SAFE_FILENAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]*")
 
 
 def release_parts(release):
@@ -129,6 +133,18 @@ def request_headers(extra=None):
     if extra:
         headers.update(extra)
     return headers
+
+
+class InsecureRedirect(requests.exceptions.RequestException):
+    """A server redirected an HTTPS request to plain HTTP."""
+
+
+def refuse_plain_http(response, *args, **kwargs):
+    if not response.url.startswith("https://"):
+        raise InsecureRedirect(f"refused a redirect to non-HTTPS {response.url}")
+
+
+HOOKS = {"response": refuse_plain_http}
 
 
 class ISOxError(Exception):
@@ -291,7 +307,9 @@ def resolve_iso_filename(name, distro_info, sources, checksum_filename, release=
                     release_prefix=distro_info.get("release_filename_prefix", ""),
                 )
             peek_url = source.rstrip("/") + "/" + checksum_filename
-            response = requests.get(peek_url, timeout=10, headers=request_headers())
+            response = requests.get(
+                peek_url, timeout=10, headers=request_headers(), hooks=HOOKS
+            )
             response.raise_for_status()
             peek_lookup = parse_checksum_file(
                 response.text,
@@ -333,7 +351,9 @@ def resolve_checksum_filename(name, distro_info, base, checksum_filename, iso_fi
     if distro_info.get("checksum_discovery_method") == "html_scan":
         try:
             return discover_via_html_listing(
-                base,
+                # Ask for the directory itself. Without the slash, Fedora's server
+                # redirects to add one, and the redirect it sends is plain HTTP.
+                base.rstrip("/") + "/",
                 [],
                 excluded_substrings_for(distro_info),
                 must_end_with="CHECKSUM",
@@ -379,11 +399,16 @@ def download_file(url, destination_path):
     headers = request_headers({"Range": f"bytes={existing}-"} if existing > 0 else None)
 
     try:
-        response = requests.get(url, stream=True, timeout=20, headers=headers)
+        response = requests.get(
+            url, stream=True, timeout=20, headers=headers, hooks=HOOKS
+        )
 
         # .part is bigger than server's file, causing issues
         if response.status_code == 416:
             response.close()
+            # With no .part there was no Range to refuse, so a retry can't help
+            if existing == 0:
+                raise ISOxError("the server refused the download (HTTP 416).")
             discard_part(part_path, meta_path)
             return download_file(url, destination_path)
 
@@ -476,7 +501,9 @@ def discover_via_html_listing(
     release=None,
     release_prefix="",
 ):
-    response = requests.get(directory_url, timeout=10, headers=request_headers())
+    response = requests.get(
+        directory_url, timeout=10, headers=request_headers(), hooks=HOOKS
+    )
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
@@ -503,7 +530,9 @@ def discover_via_html_listing(
 
 
 def find_latest_version_folder(directory_url, min_parts=1, suffix="", release=None):
-    response = requests.get(directory_url, timeout=10, headers=request_headers())
+    response = requests.get(
+        directory_url, timeout=10, headers=request_headers(), hooks=HOOKS
+    )
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
@@ -540,7 +569,9 @@ def find_latest_version_folder(directory_url, min_parts=1, suffix="", release=No
 
 def find_latest_lts_folder(directory_url, release=None):
     # Ubuntu LTS releases are always "YY.04" with YY even
-    response = requests.get(directory_url, timeout=10, headers=request_headers())
+    response = requests.get(
+        directory_url, timeout=10, headers=request_headers(), hooks=HOOKS
+    )
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
@@ -596,7 +627,7 @@ def find_latest_version(name, discovery_urls, finder, release=None):
 
 
 def is_unsafe_filename(filename):
-    return "/" in filename or "\\" in filename or ".." in filename
+    return ".." in filename or not SAFE_FILENAME.fullmatch(filename)
 
 
 def compute_hash(filepath, algo):
@@ -636,7 +667,9 @@ def check_mirror_throughput(url, sample_bytes=2_000_000):
     try:
         headers = request_headers({"Range": f"bytes=0-{sample_bytes - 1}"})
         start = time.time()
-        with requests.get(url, headers=headers, stream=True, timeout=10) as response:
+        with requests.get(
+            url, headers=headers, stream=True, timeout=10, hooks=HOOKS
+        ) as response:
             response.raise_for_status()
 
             downloaded = 0
@@ -684,7 +717,9 @@ def fetch_hash_lookup(name, distro_info, checksum_source, iso_filename):
 
     checksum_url = f"{checksum_source}/{checksum_filename}"
     try:
-        response = requests.get(checksum_url, timeout=10, headers=request_headers())
+        response = requests.get(
+            checksum_url, timeout=10, headers=request_headers(), hooks=HOOKS
+        )
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise ISOxError(
@@ -867,6 +902,15 @@ def run():
             f"Error: could not verify checksum ({e}). The ISO downloaded but was NOT verified."
         )
         print(f"Renamed to {quarantine}.")
+    except KeyboardInterrupt:
+        # Hashing stopped part way, so the ISO must not keep a name that looks verified
+        quarantine = quarantine_download(destination_path, ".UNVERIFIED")
+        print(f"\nInterrupted while verifying. Renamed to {quarantine}.")
+        sys.exit(130)
+    except OSError:
+        quarantine = quarantine_download(destination_path, ".UNVERIFIED")
+        print(f"Verification stopped. Renamed to {quarantine}.")
+        raise
     sys.exit(1)
 
 

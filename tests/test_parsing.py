@@ -65,7 +65,11 @@ def test_single_format_is_the_whole_file_stripped():
         ("win\\path.iso", True),
         ("..hidden.iso", True),
         ("foo..bar.iso", True),
-        ("", False),
+        ("", True),
+        ("C:proxmox-ve_9.9-1.iso", True),
+        ("\x1b[8mproxmox-ve_9.9-1.iso", True),
+        (".hidden.iso", True),
+        ("proxmox-ve_9.0-1.iso", False),
     ],
 )
 def test_is_unsafe_filename(filename, expected):

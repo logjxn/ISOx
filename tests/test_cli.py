@@ -108,6 +108,28 @@ def test_missing_checksum_entry_quarantines_as_unverified(tmp_path, monkeypatch)
     assert (tmp_path / "ISOx_Downloads" / "test.iso.UNVERIFIED").exists()
 
 
+@pytest.mark.parametrize(
+    "error, exit_code", [(KeyboardInterrupt, 130), (PermissionError, 1)]
+)
+def test_stopped_verification_quarantines_as_unverified(
+    error, exit_code, tmp_path, monkeypatch
+):
+    setup_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(isox.requests, "get", router(f"{ISO_SHA256}  test.iso\n"))
+
+    def stopped(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(isox, "compute_hash", stopped)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == exit_code
+    assert (tmp_path / "ISOx_Downloads" / "test.iso.UNVERIFIED").exists()
+    assert not (tmp_path / "ISOx_Downloads" / "test.iso").exists()
+
+
 def test_list_flag_prints_distros(tmp_path, monkeypatch, capsys):
     setup_repo(tmp_path, monkeypatch, argv=("isox.py", "--list"))
 
@@ -167,6 +189,27 @@ def test_all_mirrors_down_exits_1(tmp_path, monkeypatch, capsys):
 
     assert excinfo.value.code == 1
     assert "none of the mirrors" in capsys.readouterr().out
+
+
+def test_checksum_redirected_to_http_stops_before_the_download(
+    tmp_path, monkeypatch, capsys
+):
+    setup_repo(tmp_path, monkeypatch)
+    serve = router(f"{ISO_SHA256}  test.iso\n")
+
+    def fake_get(url, **kwargs):
+        if url.endswith("sha256sums.txt"):
+            raise isox.InsecureRedirect(f"refused a redirect to non-HTTPS {url}")
+        return serve(url, **kwargs)
+
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "non-HTTPS" in capsys.readouterr().out
+    assert not (tmp_path / "ISOx_Downloads" / "test.iso").exists()
 
 
 def test_keyboard_interrupt_exits_130(monkeypatch, capsys):
