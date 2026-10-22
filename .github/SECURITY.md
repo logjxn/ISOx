@@ -21,7 +21,7 @@ This is a deliberate design decision, explained in the
 threat model requires verifying the origin of a release, follow the
 distribution's own GPG instructions.
 
-All configured mirrors are HTTPS. ISOx refuses redirects to plain HTTP.
+All configured mirrors are HTTPS, and ISOx never uses a response that is over plain HTTP.
 
 ## Reporting a vulnerability
 
