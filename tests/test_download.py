@@ -170,6 +170,21 @@ def test_download_keeps_part_when_the_transfer_ends_early(tmp_path, monkeypatch)
     assert not dest.exists()
 
 
+def test_redirect_hook_refuses_plain_http():
+    response = FakeResponse()
+    response.url = "http://mirror.test/arch.iso"
+
+    with pytest.raises(isox.InsecureRedirect, match="non-HTTPS"):
+        isox.refuse_plain_http(response)
+
+
+def test_redirect_hook_allows_https():
+    response = FakeResponse()
+    response.url = "https://mirror.test/arch.iso"
+
+    isox.refuse_plain_http(response)  # no exception
+
+
 def test_request_headers_identifies_isox():
     headers = isox.request_headers()
     assert (
@@ -185,23 +200,24 @@ def test_request_headers_keeps_the_range_alongside_the_agent():
     assert "ISOx" in headers["User-Agent"]
 
 
-def test_every_outbound_request_identifies_itself(monkeypatch):
-    """Guards the whole surface: a new requests.get without headers fails here.
-
-    Being nameable is only worth anything if it's true of every request, and the
-    easy mistake is adding a call site and forgetting.
+def test_every_outbound_request_has_headers_and_hooks():
     """
+    headers = names ISOx to mirror operators
+    hooks = refuses redirects to plain HTTP.
+    """
+    import ast
     import inspect
 
-    source = inspect.getsource(isox)
+    tree = ast.parse(inspect.getsource(isox))
     calls = [
-        line.strip()
-        for line in source.splitlines()
-        if "requests.get(" in line and not line.strip().startswith("#")
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and ast.unparse(node.func) == "requests.get"
     ]
     assert calls, "no requests.get call sites found - did the module change shape?"
-    unidentified = [c for c in calls if "headers=" not in c]
-    assert not unidentified, f"requests.get without headers: {unidentified}"
+    for call in calls:
+        missing = {"headers", "hooks"} - {k.arg for k in call.keywords}
+        assert not missing, f"line {call.lineno} lacks {missing}: {ast.unparse(call)}"
 
 
 def test_download_sends_the_user_agent(tmp_path, monkeypatch):

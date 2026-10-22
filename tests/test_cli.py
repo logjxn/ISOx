@@ -169,6 +169,27 @@ def test_all_mirrors_down_exits_1(tmp_path, monkeypatch, capsys):
     assert "none of the mirrors" in capsys.readouterr().out
 
 
+def test_checksum_redirected_to_http_stops_before_the_download(
+    tmp_path, monkeypatch, capsys
+):
+    setup_repo(tmp_path, monkeypatch)
+    serve = router(f"{ISO_SHA256}  test.iso\n")
+
+    def fake_get(url, **kwargs):
+        if url.endswith("sha256sums.txt"):
+            raise isox.InsecureRedirect(f"refused a redirect to non-HTTPS {url}")
+        return serve(url, **kwargs)
+
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.main()
+
+    assert excinfo.value.code == 1
+    assert "non-HTTPS" in capsys.readouterr().out
+    assert not (tmp_path / "ISOx_Downloads" / "test.iso").exists()
+
+
 def test_keyboard_interrupt_exits_130(monkeypatch, capsys):
     def interrupted():
         raise KeyboardInterrupt
