@@ -18,6 +18,10 @@ DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
 RELEASE_PATTERN = re.compile(r"[0-9]+(\.[0-9]+)*")
 
+# Filenames from a mirror may use only these characters. That refuses Windows
+# drive prefixes ("C:x.iso") and terminal control characters along with slashes.
+SAFE_FILENAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]*")
+
 
 def release_parts(release):
     """'24.04' -> (24, 4). Compared as ints so '24.4' and '24.04' agree."""
@@ -347,7 +351,9 @@ def resolve_checksum_filename(name, distro_info, base, checksum_filename, iso_fi
     if distro_info.get("checksum_discovery_method") == "html_scan":
         try:
             return discover_via_html_listing(
-                base,
+                # Ask for the directory itself. Without the slash, Fedora's server
+                # redirects to add one, and the redirect it sends is plain HTTP.
+                base.rstrip("/") + "/",
                 [],
                 excluded_substrings_for(distro_info),
                 must_end_with="CHECKSUM",
@@ -618,7 +624,7 @@ def find_latest_version(name, discovery_urls, finder, release=None):
 
 
 def is_unsafe_filename(filename):
-    return "/" in filename or "\\" in filename or ".." in filename
+    return ".." in filename or not SAFE_FILENAME.fullmatch(filename)
 
 
 def compute_hash(filepath, algo):

@@ -97,6 +97,27 @@ def test_html_listing_can_target_checksum_files(monkeypatch):
     assert result == "Fedora-Workstation-42-1.1-x86_64-CHECKSUM"
 
 
+def test_checksum_listing_is_requested_as_a_directory(monkeypatch):
+    urls = []
+
+    def fake_get(url, **kwargs):
+        urls.append(url)
+        return types.SimpleNamespace(
+            text=listing("Fedora-Workstation-44-1.7-x86_64-CHECKSUM"),
+            raise_for_status=lambda: None,
+        )
+
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+    info = {"checksum_discovery_method": "html_scan"}
+
+    # run() strips the slash from checksum_base before it gets here
+    isox.resolve_checksum_filename(
+        "fedora", info, "https://mirror.test/iso", "CHECKSUM", "x.iso"
+    )
+
+    assert urls == ["https://mirror.test/iso/"]
+
+
 def test_version_folder_sorts_numerically(monkeypatch):
     serve_html(monkeypatch, listing("9/", "10/", "8/"))
     assert isox.find_latest_version_folder("https://example.test/") == "10"
