@@ -920,3 +920,22 @@ def test_verify_and_output_dir_cant_be_combined(tmp_path, monkeypatch, capsys):
 
     assert excinfo.value.code == 2
     assert "not allowed with argument" in capsys.readouterr().err
+
+
+def test_iso_has_no_clean_name_while_hashing(tmp_path, monkeypatch):
+    setup_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(isox.requests, "get", router(f"{ISO_SHA256}  test.iso\n"))
+    downloads = tmp_path / "ISOx_Downloads"
+    real_compute_hash = isox.compute_hash
+    seen = []
+
+    def watching(filepath, algo):
+        seen.append(sorted(os.listdir(downloads)))
+        return real_compute_hash(filepath, algo)
+
+    monkeypatch.setattr(isox, "compute_hash", watching)
+
+    isox.run()
+
+    assert seen == [["test.iso.UNVERIFIED"]]
+    assert (downloads / "test.iso").read_bytes() == ISO_BODY

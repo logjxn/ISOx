@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.7.2"
+__version__ = "3.7.3"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -482,8 +482,10 @@ def download_file(url, destination_path):
             f"download ended early ({downloaded} of {total} bytes). "
             f"Re-run to resume from where it stopped."
         )
-    os.replace(part_path, destination_path)
+    unverified_path = destination_path + ".UNVERIFIED"
+    os.replace(part_path, unverified_path)
     discard_part(part_path, meta_path)
+    return unverified_path
 
 
 def natural_sort_key(name):
@@ -654,13 +656,6 @@ def verify_checksum(filepath, filename, hash_lookup, algo):
     expected_hash = hash_lookup[filename].strip().lower()
     actual_hash = compute_hash(filepath, algo).lower()
     return hmac.compare_digest(actual_hash.encode(), expected_hash.encode())
-
-
-def quarantine_download(destination_path, suffix):
-    """Rename a file that failed verification so it can't pass for a good ISO."""
-    quarantine_path = destination_path + suffix
-    os.replace(destination_path, quarantine_path)
-    return quarantine_path
 
 
 def check_mirror_throughput(url, sample_bytes=2_000_000):
@@ -887,30 +882,32 @@ def run():
     print(f"Downloading {iso_filename} from {base} ...")
     if checksum_source != base:
         print(f"Verifying against the checksum published at {checksum_source} ...")
-    download_file(best_iso_url, destination_path)
+    unverified_path = download_file(best_iso_url, destination_path)
 
     try:
-        if verify_checksum(destination_path, iso_filename, hash_lookup, hash_algo):
-            print("Checksum matches, file is good.")
-            return
-        quarantine = quarantine_download(destination_path, ".FAILED")
-        print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
-        print(f"Renamed to {quarantine} so it can't be mistaken for a verified ISO.")
+        matches = verify_checksum(unverified_path, iso_filename, hash_lookup, hash_algo)
     except ValueError as e:
-        quarantine = quarantine_download(destination_path, ".UNVERIFIED")
         print(
             f"Error: could not verify checksum ({e}). The ISO downloaded but was NOT verified."
         )
-        print(f"Renamed to {quarantine}.")
+        print(f"Left as {unverified_path}.")
+        sys.exit(1)
     except KeyboardInterrupt:
-        # Hashing stopped part way, so the ISO must not keep a name that looks verified
-        quarantine = quarantine_download(destination_path, ".UNVERIFIED")
-        print(f"\nInterrupted while verifying. Renamed to {quarantine}.")
+        print(f"\nInterrupted while verifying. Left as {unverified_path}.")
         sys.exit(130)
     except OSError:
-        quarantine = quarantine_download(destination_path, ".UNVERIFIED")
-        print(f"Verification stopped. Renamed to {quarantine}.")
+        print(f"Verification stopped. Left as {unverified_path}.")
         raise
+
+    if matches:
+        # The clean name only exists once the hash has passed
+        os.replace(unverified_path, destination_path)
+        print("Checksum matches, file is good.")
+        return
+    failed_path = destination_path + ".FAILED"
+    os.replace(unverified_path, failed_path)
+    print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
+    print(f"Renamed to {failed_path} so it can't be mistaken for a verified ISO.")
     sys.exit(1)
 
 

@@ -108,7 +108,7 @@ Checksum matches, file is good.
 - **Resumable downloads** - interrupted transfers are written to a `.part` file and continued via an HTTP `Range` request on the next run. (.part files that are stale are also checked before resuming, and are scrapped if they're out of date)
 - **Live progress bar** - shows percentage and real-time throughput, and degrades to a plain byte counter if the server won't report a total size.
 - **Streamed downloads** - files are downloaded in large chunks (`requests` with `stream=True`), so multi-GB ISOs don't hog RAM.
-- **Failure quarantine** - an ISO that fails verification is renamed, so it can't be mistaken for a verified file.
+- **Failure quarantine** - a download only gets its final name after the checksum matches; a failed or unfinished verification leaves it as `.FAILED` or `.UNVERIFIED`, so it can't be mistaken for verified.
 - **Verify existing ISOs** - `--verify` checks a file you already have against the distro's checksum, without downloading or renaming anything.
 - **Path-traversal protection** - filenames discovered from remote HTML listings are validated before ever being used in a URL or local file path.
 
@@ -254,16 +254,17 @@ error are skipped.
 
 ### Resumable downloads
 
-Downloads are written to `<filename>.part` and only renamed to the final name once the
-transfer completes, so a partial can't be mistaken for a finished file. On the next run
-the `.part` size becomes the offset in a `Range: bytes=N-` request.
+Downloads are written to `<filename>.part`. When the transfer completes, the file is
+renamed to `<filename>.UNVERIFIED`, and it only gets the final name after the checksum
+matches. On the next run the `.part` size becomes the offset in a `Range: bytes=N-` request.
 
 The tool will also handle size mismatches and stale part files.
 
 ### Checksum verification
 
 The checksum file is fetched new on every run, from `checksum_base` and compared with `hmac.compare_digest`. A hash mismatch
-renames the ISO to `<filename>.FAILED`; a missing entry renames it to `<filename>.UNVERIFIED`.
+renames the ISO to `<filename>.FAILED`. If verification can't finish (a missing checksum entry, Ctrl+C, a file error, or a
+hard kill), the file stays as `<filename>.UNVERIFIED`.
 
 `--verify` reports the same result but leaves the file as is.
 

@@ -77,7 +77,7 @@ def test_download_writes_file_and_cleans_up(tmp_path, monkeypatch):
 
     isox.download_file(URL, str(dest))
 
-    assert dest.read_bytes() == BODY
+    assert (tmp_path / "arch.iso.UNVERIFIED").read_bytes() == BODY
     assert not (tmp_path / "arch.iso.part").exists()
     assert not (tmp_path / "arch.iso.part.meta").exists()
     assert server.ranges_seen == [None]
@@ -92,7 +92,7 @@ def test_download_resumes_from_existing_part(tmp_path, monkeypatch):
 
     isox.download_file(URL, str(dest))
 
-    assert dest.read_bytes() == BODY
+    assert (tmp_path / "arch.iso.UNVERIFIED").read_bytes() == BODY
     assert server.ranges_seen == ["bytes=400-"]
 
 
@@ -107,7 +107,7 @@ def test_download_discards_partial_with_stale_fingerprint(
 
     isox.download_file(URL, str(dest))
 
-    assert dest.read_bytes() == BODY
+    assert (tmp_path / "arch.iso.UNVERIFIED").read_bytes() == BODY
     assert server.ranges_seen == ["bytes=300-", None]
     assert "doesn't match file on server" in capsys.readouterr().out
 
@@ -126,7 +126,7 @@ def test_download_keeps_partial_when_the_mirror_changes(tmp_path, monkeypatch):
 
     isox.download_file(URL, str(dest))
 
-    assert dest.read_bytes() == BODY
+    assert (tmp_path / "arch.iso.UNVERIFIED").read_bytes() == BODY
     assert server.ranges_seen == ["bytes=400-"]  # resumed, not restarted
 
 
@@ -139,7 +139,7 @@ def test_download_restarts_when_partial_is_larger_than_source(tmp_path, monkeypa
 
     isox.download_file(URL, str(dest))
 
-    assert dest.read_bytes() == BODY
+    assert (tmp_path / "arch.iso.UNVERIFIED").read_bytes() == BODY
     assert server.ranges_seen == ["bytes=2000-", None]
 
 
@@ -168,8 +168,8 @@ def test_download_restarts_when_server_ignores_range(tmp_path, monkeypatch):
 
     isox.download_file(URL, str(dest))
 
-    assert dest.read_bytes() == BODY
-    assert len(dest.read_bytes()) == 1000  # not 1400
+    assert (tmp_path / "arch.iso.UNVERIFIED").read_bytes() == BODY
+    assert len((tmp_path / "arch.iso.UNVERIFIED").read_bytes()) == 1000  # not 1400
 
 
 def test_download_keeps_part_when_the_transfer_ends_early(tmp_path, monkeypatch):
