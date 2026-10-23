@@ -939,3 +939,16 @@ def test_iso_has_no_clean_name_while_hashing(tmp_path, monkeypatch):
 
     assert seen == [["test.iso.UNVERIFIED"]]
     assert (downloads / "test.iso").read_bytes() == ISO_BODY
+
+
+def test_leftover_unverified_file_is_never_promoted(tmp_path, monkeypatch):
+    setup_repo(tmp_path, monkeypatch)
+    downloads = tmp_path / "ISOx_Downloads"
+    downloads.mkdir()
+    (downloads / "test.iso.UNVERIFIED").write_bytes(b"left by a killed run")
+    monkeypatch.setattr(isox.requests, "get", router(f"{ISO_SHA256}  test.iso\n"))
+
+    isox.run()
+
+    assert (downloads / "test.iso").read_bytes() == ISO_BODY
+    assert not (downloads / "test.iso.UNVERIFIED").exists()
