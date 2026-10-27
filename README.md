@@ -7,7 +7,7 @@
 ![OS](https://img.shields.io/badge/platform-Linux-orange)
 ![CI](https://github.com/logjxn/ISOx/actions/workflows/ci.yml/badge.svg)
 
-A command-line tool that downloads Linux distribution ISOs, races mirrors to find the fastest source, and verifies the ISO against a checksum published by the distro's own host, never the mirror that served it ([what that does and doesn't cover](#what-verification-does-and-doesnt-cover)). No more hunting down hashes or skipping verification.
+A command-line tool for downloading and verifying Linux distribution ISOs. ISOx retrieves checksums from a source separate from the mirror serving the ISO, enforces HTTPS, and tracks verification status so incomplete or failed checks aren't mistaken for successful verification ([what verification does and doesn't cover](#what-verification-does-and-doesnt-cover)).
 
 ```
 Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
@@ -18,7 +18,9 @@ Already have an ISO? `isox <distro> --verify FILE` checks it against the distroâ
 
 ## Why
 
-I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. This poses an integrity risk (modified ISOs, corruption, etc.), so I built a tool that automates the whole pipeline and makes verification simple, protecting the integrity of ISOs.
+You don't control the mirror serving your ISO, and manually verifying every download is tedious enough that it's easy to skip.
+
+ISOx handles that for you. It gets the checksum from a separate source, only uses HTTPS, and refuses redirects to plain HTTP. Downloads stay marked `.UNVERIFIED` until the hash matches, and mismatches get marked `.FAILED`.
 
 ## Install
 
