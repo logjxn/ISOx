@@ -18,9 +18,9 @@ Already have an ISO? `isox <distro> --verify FILE` checks it against the distroâ
 
 ## Why
 
-You don't control the mirror serving your ISO, and manually verifying every download is tedious enough that it's easy to skip.
+I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. This poses an integrity risk (modified ISOs, corruption, etc.), so I built a tool that automates the whole pipeline and makes verification simple.
 
-ISOx handles that for you. It gets the checksum from a separate source, only uses HTTPS, and refuses redirects to plain HTTP. Downloads stay marked `.UNVERIFIED` until the hash matches, and mismatches get marked `.FAILED`.
+I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
 
 ## Install
 
