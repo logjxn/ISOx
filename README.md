@@ -20,8 +20,6 @@ Already have an ISO? `isox <distro> --verify FILE` checks it against the distroâ
 
 Manually verifying checksums gets tedious quickly, making it easy to skip. Skipping verification can pose an integrity risk (modified ISOs, corruption, etc.), so ISOx automates the process.
 
-I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
-
 ## Install
 
 From PyPI:
