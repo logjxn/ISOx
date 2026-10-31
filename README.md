@@ -7,7 +7,7 @@
 ![OS](https://img.shields.io/badge/platform-Linux-orange)
 ![CI](https://github.com/logjxn/ISOx/actions/workflows/ci.yml/badge.svg)
 
-A command-line tool for downloading and verifying Linux distribution ISOs. ISOx retrieves checksums from a source separate from the mirror serving the ISO, enforces HTTPS, and tracks verification status so incomplete or failed checks aren't mistaken for successful verification ([what verification does and doesn't cover](#what-verification-does-and-doesnt-cover)).
+A command-line tool for downloading and verifying Linux distribution ISOs. 
 
 ```
 Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
