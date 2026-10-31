@@ -34,18 +34,3 @@ if it's specific to one.
 
 I'll acknowledge within a week. ISOx is maintained by me in my spare
 time, so I'd rather promise a week to give some leeway.
-
-## What counts
-
-Reports that would land as a security issue rather than a bug:
-
-- A path outside `ISOx_Downloads/` being written to, via a crafted filename in
-  a directory listing or checksum file
-- A failed or skipped verification being reported as a success
-- Anything in a mirror's response leading to code execution
-- A `.part` from a different file being silently merged into a download
-
-Reports that are bugs, and belong in a normal issue:
-
-- A distro's layout changed upstream and discovery broke
-- A mirror is down or slow
