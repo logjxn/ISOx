@@ -18,7 +18,7 @@ Already have an ISO? `isox <distro> --verify FILE` checks it against the distroâ
 
 ## Why
 
-Manually verifying checksums gets tedious quick, and is easy to skip. Unfortunately, that can pose an integrity risk (modified ISOs, corruption, etc.), so this tool automates the whole process.
+Manually verifying checksums gets tedious quickly, making it easy to skip. Skipping verification can pose an integrity risk (modified ISOs, corruption, etc.), so ISOx automates the process.
 
 I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
 
@@ -61,32 +61,6 @@ python isox.py fedora --release 44 --verify ~/Downloads/Fedora-Workstation-Live-
 python isox.py ubuntu --release 24.04 --verify ubuntu-24.04.5.1-desktop-amd64.iso
 ```
 
-Download and verify a distro:
-```bash
-python isox.py arch
-python isox.py debian
-python isox.py kali
-python isox.py alpine
-python isox.py mint
-python isox.py fedora
-python isox.py fedora-server
-python isox.py opensuse
-python isox.py gentoo
-python isox.py void
-python isox.py garuda
-python isox.py ubuntu
-python isox.py ubuntu-server
-python isox.py rocky
-python isox.py alma
-python isox.py cachyos
-python isox.py mageia
-python isox.py openmandriva
-python isox.py proxmox
-python isox.py proxmox-backup-server
-python isox.py zorin
-python isox.py centos-stream
-```
-
 Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
 
 ```
@@ -100,19 +74,15 @@ Checksum matches, file is good.
 
 ## Features
 
-- **Config-driven distro support** - supported distros are defined in `distros.json`, meaning adding a new distro is a JSON entry, not a code change. 
+- **Config-driven distro support** - add supported distributions through `distros.json` without changing code.
 - **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered by scanning a parent directory and sorting versions (folder names).
 - **Release selection** - `--release` picks an older release, such as Ubuntu 24.04 or Proxmox 8. A partial version like `22` gets the newest release in that series.
-- **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
-- **Resumable downloads** - uses .part files and Range requests to continue interrupted downloads, while handling stale .part files.
+- **Mirror selection** - tests available mirrors and selects the fastest.
+- **Resumable downloads** - continues interrupted downloads, while discarding out of date copies.
 - **Live progress bar** - shows percentage and real-time throughput, and degrades to a plain byte counter if the server won't report a total size.
 - **Verify existing ISOs** - `--verify` checks a file you already have against the distro's checksum, without downloading or renaming anything.
 
-## How it works
-
-This section covers what you need to configure and run ISOx.
-
-### Config format (`distros.json`)
+## Config format (`distros.json`)
 
 Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest cases.
 
@@ -149,64 +119,23 @@ If the included mirrors are not ideal for your location, you can easily update t
 }
 ```
 
-### Selecting a release
-
-`--release` selects a specific version. The listing is still scraped, and
-only entries that start with the requested numbers are kept. 
-
-A release must still be on the configured mirrors. Distros that move old releases to an
-archive (Rocky & Fedora for example) can't serve them through `--release`.
-
-### Verifying an existing ISO
-
-`--verify FILE` skips the download. It fetches the checksum and looks up the file by its name.
-
-- On distros with version folders, version discovery still runs, so an
-  ISO from an older release needs `--release` as well.
-- A renamed file can't be looked up, it has to match the original downloaded name.
-- The file is never renamed or moved.
-- The distro has to still publish a checksum for that exact file. 
-
-### Mirror selection
-
-Each mirror is sampled with a ranged GET pulling the first ~2MB of the actual ISO,
-and real throughput is measured over that sample. Fastest wins. Mirrors that time out or
-error are skipped.
-
-### Resumable downloads
-
-Downloads are written to `<filename>.part`. When the transfer completes, the file is
-renamed to `<filename>.UNVERIFIED`. It gets the final name after the checksum
-matches. On the next run the `.part` size becomes the offset in a `Range: bytes=N-` request.
-
-The tool will also handle size mismatches and stale part files.
-
 ### Checksum verification
 
-The checksum file is fetched new on every run. A hash mismatch
-renames the ISO to `<filename>.FAILED`. If verification can't finish (a missing checksum entry, Ctrl+C, a file error, etc.), the file stays as `<filename>.UNVERIFIED`.
+The checksum is fetched on every run. Files that fail verification are renamed to `.FAILED`. Files that cannot be verified remain `.UNVERIFIED`.
 
-## What verification does and doesn't cover
+## Security
 
-**Covered.** Corruption in transit, truncated transfers, a bad disk, a botched resume, and
-a mirror serving a modified ISO. Modified ISOs are handled by grabbing the checksum from
-the main distro host.
+ISOx detects corruption, incomplete downloads, and ISOs that don't match their published checksums.
 
-**Not covered.** If the distro's own server is compromised, both the ISO and its checksum can be replaced together.
-Only signature verification (GPG) catches that.
+It does not authenticate the checksum itself. If a distribution's infrastructure is compromised, an attacker could replace both the ISO and its checksum.
 
-GPG is not included as it would require maintaining trusted public keys (or fingerprints)
-for every supported distribution, along with key management and signature validation
-logic. That complexity conflicts with ISOx's goal of being a lightweight, easy to use, and
-config-driven Linux tool.
+ISOx does not verify GPG signatures. See [SECURITY.md](https://github.com/logjxn/ISOx/blob/main/.github/SECURITY.md) for details.
 
 ## Requirements
 
 - Python 3.10+
 - `requests`
-- `beautifulsoup4` - used for HTML directory-listing discovery
-
-Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re`, `site`, `sysconfig`) is part of the Python standard library.
+- `beautifulsoup4` 
 
 ## Development
 
