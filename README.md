@@ -149,25 +149,6 @@ If the included mirrors are not ideal for your location, you can easily update t
 }
 ```
 
-| Key | Purpose |
-|---|---|
-| `mirrors` | **Required.** Where the ISO may be downloaded from. Raced on every run. |
-| `checksum_filename` | **Required.** Literal name, or a `{iso_filename}.sha256` template. |
-| `hash_algo` | **Required.** Anything `hashlib` supports. Validated before any download starts. |
-| `checksum_base` | Host to fetch the checksum from, ideally the distro's own server. Also decides the ISO filename, so name and hash always agree. |
-| `iso_filename` | For distros whose filename never changes. |
-| `iso_filename_contains` | Substrings every candidate filename must contain. |
-| `iso_filename_excludes` | Substrings that disqualify a filename. Use this when a distro publishes images your substrings can't tell apart, like Debian's `-edu-` and `-mac-` images. |
-| `discovery_method` | `checksum_scan` (default) or `html_scan`. |
-| `checksum_discovery_method` | `html_scan` when the checksum filename itself has to be scraped. |
-| `checksum_format` | `multi` (default), `bsd`, or `single`. |
-| `version_directory` | `true` when the current version has to be discovered first. |
-| `version_discovery_url` | One URL or a list of them, tried in order. |
-| `version_scheme` | `ubuntu_lts` to select only LTS releases. |
-| `version_suffix` | Suffix to strip from version folder names before sorting, such as `-stream` for CentOS's `10-stream`. |
-| `rolling` | `true` for rolling-release distros. `--release` is refused with a clear message. |
-| `release_filename_prefix` | For flat directories that keep every release side by side, such as `proxmox-ve_`. `--release` filters on the version after this prefix. Requires `html_scan`. |
-
 ### Selecting a release
 
 `--release` selects a specific version. The listing is still scraped, and
