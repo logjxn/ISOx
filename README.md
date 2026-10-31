@@ -18,7 +18,7 @@ Already have an ISO? `isox <distro> --verify FILE` checks it against the distroâ
 
 ## Why
 
-I distro-hop a lot across laptops, tablets, Pis, and spare hardware. Manually visiting each project's download page, picking a mirror, and copy-pasting checksums to verify against every time got tedious enough that I started skipping the verification step entirely. This poses an integrity risk (modified ISOs, corruption, etc.), so I built a tool that automates the whole pipeline and makes verification simple.
+Manually verifying checksums gets tedious quick, and is easy to skip. Unfortunately, that can pose an integrity risk (modified ISOs, corruption, etc.), so this tool automates the whole process.
 
 I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
 
