@@ -36,7 +36,7 @@ Or straight from a clone:
 
 ## Usage
 
-Once installed from PyPI, `isox` works as a bare command. From a clone, use `python isox.py`. The two are interchangeable; examples below use the clone form.
+Once installed from PyPI, `isox` works as a bare command. From a clone, use `python isox.py`. Examples below use the clone form.
 
 List every supported distro:
 ```bash
@@ -100,17 +100,13 @@ Checksum matches, file is good.
 
 ## Features
 
-- **Config-driven distro support** - supported distros are defined in `distros.json`, meaning adding a new distro is a JSON entry, not a code change.
-- **Three ISO-discovery strategies** - covers distros that publish their ISOs in very different ways.
+- **Config-driven distro support** - supported distros are defined in `distros.json`, meaning adding a new distro is a JSON entry, not a code change. 
 - **Version-folder auto-discovery** - for distros with no stable "latest" alias, the current version-numbered directory is discovered by scanning a parent directory and sorting versions (folder names).
 - **Release selection** - `--release` picks an older release, such as Ubuntu 24.04 or Proxmox 8. A partial version like `22` gets the newest release in that series.
 - **Mirror speed checks** - samples ~2MB from each candidate mirror via a ranged request to measure real throughput, then downloads from the fastest.
-- **Resumable downloads** - interrupted transfers are written to a `.part` file and continued via an HTTP `Range` request on the next run. (.part files that are stale are also checked before resuming, and are scrapped if they're out of date)
+- **Resumable downloads** - uses .part files and Range requests to continue interrupted downloads, while handling stale .part files.
 - **Live progress bar** - shows percentage and real-time throughput, and degrades to a plain byte counter if the server won't report a total size.
-- **Streamed downloads** - files are downloaded in large chunks (`requests` with `stream=True`), so multi-GB ISOs don't hog RAM.
-- **Failure quarantine** - a download only gets its final name after the checksum matches; a failed or unfinished verification leaves it as `.FAILED` or `.UNVERIFIED`, so it can't be mistaken for verified.
 - **Verify existing ISOs** - `--verify` checks a file you already have against the distro's checksum, without downloading or renaming anything.
-- **Path-traversal protection** - filenames discovered from remote HTML listings are validated before ever being used in a URL or local file path.
 
 ## How it works
 
@@ -120,7 +116,7 @@ This section covers what you need to configure and run ISOx.
 
 Every distro entry needs `mirrors`, `checksum_filename`, and `hash_algo` at minimum. Everything else is optional and only needed if that distro deviates from the simplest cases.
 
-If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro's official mirror list and replace the URL in distros.json. The tool will then handle the rest. Mirror, checksum and version-discovery URLs must be HTTPS.
+If the included mirrors are not ideal for your location, you can easily update them. Just find a suitable mirror from the distro's official mirror list and replace the URL in distros.json. The tool will then handle the rest. HTTPS only.
 
 ```json
 {
@@ -172,79 +168,23 @@ If the included mirrors are not ideal for your location, you can easily update t
 | `rolling` | `true` for rolling-release distros. `--release` is refused with a clear message. |
 | `release_filename_prefix` | For flat directories that keep every release side by side, such as `proxmox-ve_`. `--release` filters on the version after this prefix. Requires `html_scan`. |
 
-#### Where `distros.json` is loaded from
-
-Searched in this order, first hit wins:
-
-1. `$ISOX_DISTROS`
-2. `~/.config/isox/distros.json` (`%APPDATA%\isox\distros.json` on Windows)
-3. Beside `isox.py` (usually when it's git cloned)
-4. `share/isox/distros.json` under the install scheme's data directory, the user base, or `sys.prefix`
-
-**If you customize mirrors on a pip install, put your copy at (2)**, so it survives updates.
-
-```bash
-mkdir -p ~/.config/isox
-isox --list                      # prints the config path currently in use
-cp "$(isox --list | sed -n 's/^config: //p')" ~/.config/isox/distros.json
-```
-
-### ISO filename discovery
-
-- **`"iso_filename"`** - for distros with one fixed, unchanging filename.
-- **`"iso_filename_contains"` + default discovery** - scans a shared checksum file for a filename matching all the given substrings.
-- **`"iso_filename_contains"` + `"discovery_method": "html_scan"`** - scrapes the directory listing HTML for distros with no single shared checksum file.
-
-### Version-folder discovery
-
-For distros with no stable "latest" URL alias, `"version_directory": true` scrapes the
-parent directory first, sorts version folder names numerically, and splices the newest
-into every `{version}` placeholder.
-
-`version_discovery_url` takes a list as well as a single URL, tried in order.
-`version_scheme: "ubuntu_lts"` narrows this to even-year `.04` folders, so
-`python isox.py ubuntu` resolves to the latest LTS rather than the latest interim.
-
 ### Selecting a release
 
-`--release` narrows discovery to a specified version. The listing is still scraped, and
-only entries whose version starts with the requested numbers are kept. `22` matches
-`22.1` and `22.3` but not `220`. The newest of those wins.
-
-- **Version folders** (Ubuntu, Ubuntu Server, Fedora, Fedora Server, Rocky, Alma, Mint, Mageia, Zorin,
-  CentOS Stream) filter the folder names. `ubuntu` still only accepts LTS releases.
-- **Flat directories** (Proxmox) filter filenames using `release_filename_prefix`.
-- **Rolling distros** and distros whose mirrors only serve the current release refuse the
-  flag before any network request.
+`--release` selects a specific version. The listing is still scraped, and
+only entries that start with the requested numbers are kept. 
 
 A release must still be on the configured mirrors. Distros that move old releases to an
 archive (Rocky & Fedora for example) can't serve them through `--release`.
 
 ### Verifying an existing ISO
 
-`--verify FILE` skips the download. It fetches the checksum file from
-`checksum_base` and looks up the file by its own name, so a browser download named after its release works
-the same as one ISOx saved.
+`--verify FILE` skips the download. It fetches the checksum and looks up the file by its name.
 
 - On distros with version folders, version discovery still runs, so an
   ISO from an older release needs `--release` as well.
-- Flat-directory distros (ex. Proxmox) refuse `--release` with `--verify`, since the
-  filename already names the release.
 - A renamed file can't be looked up, it has to match the original downloaded name.
-- The file is never renamed or moved, even if there's a mismatch.
-- Distros without a `checksum_base` refuse the flag, since a mirror's own checksum can't
-  vouch for a file.
-- The distro has to still publish a checksum for that exact file. Superseded point
-  releases (an Ubuntu 24.04.3 ISO once 24.04.5 is out) may drop out of the checksum
-  file and can no longer be verified.
-
-### Checksum parsing
-
-Three published formats are normalized into the same `{filename: hash}` lookup:
-
-- **`multi`** (default) - `<hash>  <filename>`, one per line
-- **`bsd`** - `SHA256 (filename) = <hash>`
-- **`single`** - the file contains only the hash
+- The file is never renamed or moved.
+- The distro has to still publish a checksum for that exact file. 
 
 ### Mirror selection
 
@@ -255,18 +195,15 @@ error are skipped.
 ### Resumable downloads
 
 Downloads are written to `<filename>.part`. When the transfer completes, the file is
-renamed to `<filename>.UNVERIFIED`, and it only gets the final name after the checksum
+renamed to `<filename>.UNVERIFIED`. It gets the final name after the checksum
 matches. On the next run the `.part` size becomes the offset in a `Range: bytes=N-` request.
 
 The tool will also handle size mismatches and stale part files.
 
 ### Checksum verification
 
-The checksum file is fetched new on every run, from `checksum_base` and compared with `hmac.compare_digest`. A hash mismatch
-renames the ISO to `<filename>.FAILED`. If verification can't finish (a missing checksum entry, Ctrl+C, a file error, or a
-hard kill), the file stays as `<filename>.UNVERIFIED`.
-
-`--verify` reports the same result but leaves the file as is.
+The checksum file is fetched new on every run. A hash mismatch
+renames the ISO to `<filename>.FAILED`. If verification can't finish (a missing checksum entry, Ctrl+C, a file error, etc.), the file stays as `<filename>.UNVERIFIED`.
 
 ## What verification does and doesn't cover
 
@@ -299,19 +236,11 @@ Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re
     bandit isox.py
 
 The suite is simulated (no network), except `tests/test_live_mirrors.py`, as it resolves
-every distro in `distros.json` against real mirrors
-and checks if the filename it lands on has a checksum, without downloading
-any ISO. It's deselected by default and takes about a minute:
+every distro against real mirrors, fetching for a checksum. It's deselected by default and takes about a minute:
 
     pytest -m live       # all distros
     pytest -m live -s    # printing each resolved filename and hash
     pytest -m live -k rocky
-
-## Contributing
-
-Distro requests and additions are welcome. Most new distros are a
-`distros.json` entry with no Python at all. See
-[CONTRIBUTING.md](https://github.com/logjxn/ISOx/blob/main/.github/CONTRIBUTING.md).
 
 ## License
 
