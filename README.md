@@ -216,9 +216,6 @@ Everything else (`hashlib`, `hmac`, `json`, `argparse`, `os`, `sys`, `time`, `re
     ruff check .
     bandit isox.py
 
-The suite is simulated (no network), except `tests/test_live_mirrors.py`, as it resolves
-every distro against real mirrors, fetching for a checksum. It's deselected by default and takes about a minute:
-
     pytest -m live       # all distros
     pytest -m live -s    # printing each resolved filename and hash
     pytest -m live -k rocky
