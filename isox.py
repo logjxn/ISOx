@@ -15,6 +15,14 @@ __version__ = "3.7.3"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
+EXIT_CODES_HELP = """\
+exit codes:
+  0    success
+  1    error: ISOx could not download or check the ISO
+  2    usage error: the arguments are not valid
+  3    checksum mismatch: the ISO does not match its published checksum
+  130  interrupted (Ctrl+C)
+"""
 
 RELEASE_PATTERN = re.compile(r"[0-9]+(\.[0-9]+)*")
 
@@ -771,12 +779,18 @@ def run():
             "distros.json is malformed. Please check for typos in your configuration."
         ) from e
 
-    parser = argparse.ArgumentParser(description="Download and verify Linux ISOs")
+    parser = argparse.ArgumentParser(
+        prog="isox",
+        description="Download and verify Linux ISOs",
+        epilog=EXIT_CODES_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "distro",
         nargs="?",
         choices=list(distros.keys()),
-        help="Which distro to download",
+        metavar="DISTRO",
+        help="Which distro to download (see --list)",
     )
     parser.add_argument(
         "--list", action="store_true", help="List available distros and exit"
@@ -785,6 +799,7 @@ def run():
     target = parser.add_mutually_exclusive_group()
     target.add_argument(
         "--output-dir",
+        metavar="DIR",
         default=DEFAULT_DOWNLOAD_DIR,
         help=f"Where to save the ISO (default: ./{DEFAULT_DOWNLOAD_DIR})",
     )
