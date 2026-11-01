@@ -752,7 +752,7 @@ def verify_local_iso(name, distro_info, filepath, checksum_base):
         return
     print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
     print("The file was left as it is, since ISOx didn't download it.")
-    sys.exit(1)
+    sys.exit(3)
 
 
 def run():
@@ -908,7 +908,7 @@ def run():
     os.replace(unverified_path, failed_path)
     print("WARNING: checksum mismatch, file may be corrupted or tampered with!")
     print(f"Renamed to {failed_path} so it can't be mistaken for a verified ISO.")
-    sys.exit(1)
+    sys.exit(3)
 
 
 def main():
