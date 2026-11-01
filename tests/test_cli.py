@@ -91,7 +91,7 @@ def test_checksum_mismatch_quarantines_as_failed(tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit) as excinfo:
         isox.run()
 
-    assert excinfo.value.code == 1
+    assert excinfo.value.code == 3
     assert (tmp_path / "ISOx_Downloads" / "test.iso.FAILED").exists()
     assert not (tmp_path / "ISOx_Downloads" / "test.iso").exists()
     assert "checksum mismatch" in capsys.readouterr().out
@@ -436,7 +436,7 @@ def test_checksum_comes_from_the_canonical_host_not_the_fastest_mirror(
     with pytest.raises(SystemExit) as excinfo:
         isox.run()
 
-    assert excinfo.value.code == 1
+    assert excinfo.value.code == 3
     assert checksum_requests == ["https://canonical.test/iso/sha256sums.txt"]
     assert (tmp_path / "ISOx_Downloads" / "test.iso.FAILED").exists()
     assert "checksum mismatch" in capsys.readouterr().out
@@ -776,7 +776,7 @@ def test_verify_mismatch_exits_1_and_leaves_the_file_alone(
     with pytest.raises(SystemExit) as excinfo:
         isox.main()
 
-    assert excinfo.value.code == 1
+    assert excinfo.value.code == 3
     assert "checksum mismatch" in capsys.readouterr().out
     # Not ours to quarantine
     assert iso.read_bytes() == ISO_BODY
@@ -952,3 +952,18 @@ def test_leftover_unverified_file_is_never_promoted(tmp_path, monkeypatch):
 
     assert (downloads / "test.iso").read_bytes() == ISO_BODY
     assert not (downloads / "test.iso.UNVERIFIED").exists()
+
+
+def test_help_names_the_program_isox_and_lists_exit_codes(
+    tmp_path, monkeypatch, capsys
+):
+    setup_repo(tmp_path, monkeypatch, argv=("isox.py", "--help"))
+
+    with pytest.raises(SystemExit) as excinfo:
+        isox.run()
+
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert out.startswith("usage: isox [")
+    assert "\nexit codes:\n" in out
+    assert "\n  3    checksum mismatch" in out
