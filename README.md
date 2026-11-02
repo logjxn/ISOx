@@ -7,14 +7,16 @@
 ![OS](https://img.shields.io/badge/platform-Linux-orange)
 ![CI](https://github.com/logjxn/ISOx/actions/workflows/ci.yml/badge.svg)
 
-A command-line tool for downloading and verifying Linux distribution ISOs. 
+A command-line tool for downloading and verifying Linux distribution ISOs.
+
+![isox alpine: four mirrors sampled, download from the fastest, checksum from Alpine's own host](assets/isox-demo.svg)
 
 ```
 Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
                                           (fastest mirror)  (distro's own host)
 ```
 
-Already have an ISO? `isox <distro> --verify FILE` checks it against the distro’s own checksum without downloading anything.
+Already have an ISO? `isox <distro> --verify FILE` checks it against the distro's own checksum without downloading anything.
 
 ## Why
 
@@ -59,17 +61,6 @@ Verify an ISO you already have (from a browser, a torrent, a USB stick):
 ```bash
 python isox.py fedora --release 44 --verify ~/Downloads/Fedora-Workstation-Live-44-1.7.x86_64.iso
 python isox.py ubuntu --release 24.04 --verify ubuntu-24.04.5.1-desktop-amd64.iso
-```
-
-Downloaded ISOs are saved to the created folder `ISOx_Downloads/`. Output looks like:
-
-```
-https://fastly.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 3.33 MB/s
-https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso sampled at 1.98 MB/s
-https://mirror.rackspace.com/archlinux/iso/latest/archlinux-x86_64.iso sampled at 0.08 MB/s
-Downloading archlinux-x86_64.iso from https://fastly.mirror.pkgbuild.com/iso/latest ...
-[##############################] 100.0%    3.41 MB/s
-Checksum matches, file is good.
 ```
 
 ## Features
@@ -135,7 +126,7 @@ ISOx does not verify GPG signatures. See [SECURITY.md](https://github.com/logjxn
 
 - Python 3.10+
 - `requests`
-- `beautifulsoup4` 
+- `beautifulsoup4`
 
 ## Development
 
