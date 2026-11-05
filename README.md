@@ -9,7 +9,7 @@
 
 A command-line tool for downloading and verifying Linux distribution ISOs.
 
-![isox alpine: four mirrors sampled, download from the fastest, checksum from Alpine's own host](assets/isox-demo.svg)
+![isox alpine: four mirrors sampled, download from the fastest, checksum from Alpine's own host](https://raw.githubusercontent.com/logjxn/ISOx/main/assets/isox-demo.svg)
 
 ```
 Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
