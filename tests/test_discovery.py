@@ -430,6 +430,47 @@ def test_version_discovery_raises_when_every_url_fails(monkeypatch):
         )
 
 
+def serve_listings(monkeypatch, pages):
+    """Serve a different listing per URL"""
+
+    def fake_get(url, **kwargs):
+        return types.SimpleNamespace(text=pages[url], raise_for_status=lambda: None)
+
+    monkeypatch.setattr(isox.requests, "get", fake_get)
+
+
+@pytest.mark.parametrize(
+    "urls",
+    [
+        ["https://stale.test/", "https://current.test/"],
+        ["https://current.test/", "https://stale.test/"],
+    ],
+)
+def test_a_stale_discovery_url_cannot_roll_back_the_version(monkeypatch, urls):
+    serve_listings(
+        monkeypatch,
+        {
+            "https://stale.test/": listing("9/"),
+            "https://current.test/": listing("9/", "10/"),
+        },
+    )
+    finder = isox.version_finder_for({})
+    assert isox.find_latest_version("mageia", urls, finder) == "10"
+
+
+def test_a_stale_discovery_url_cannot_roll_back_a_requested_release(monkeypatch):
+    serve_listings(
+        monkeypatch,
+        {
+            "https://stale.test/": listing("22.1/"),
+            "https://current.test/": listing("22.1/", "22.2/", "23/"),
+        },
+    )
+    finder = isox.version_finder_for({}, "22")
+    urls = ["https://stale.test/", "https://current.test/"]
+    assert isox.find_latest_version("mint", urls, finder, "22") == "22.2"
+
+
 # --- suffix tests ----------------------------------------------------
 
 

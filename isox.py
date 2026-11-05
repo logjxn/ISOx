@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.8.0"
+__version__ = "3.8.1"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -219,7 +219,7 @@ def total_size_from(response):
 
 
 def version_discovery_urls(distro_info):
-    """version_discovery_url accepts one URL or a list of them, tried in order."""
+    """version_discovery_url accepts one URL or a list of them. All are asked."""
     configured = distro_info.get("version_discovery_url")
     if configured is None:
         return []
@@ -619,11 +619,16 @@ def version_finder_for(distro_info, release=None):
 
 
 def find_latest_version(name, discovery_urls, finder, release=None):
+    # Ask every source and keep the newest. Stale mirrors
+    # first can't return an old release
+    found = []
     for url in discovery_urls:
         try:
-            return finder(url)
+            found.append(finder(url))
         except (requests.exceptions.RequestException, ValueError):
             print(f"Couldn't discover a version via {url}")
+    if found:
+        return max(found, key=natural_sort_key)
     if release is not None:
         raise ISOxError(
             f"couldn't find release {release} for '{name}' from any of its "
