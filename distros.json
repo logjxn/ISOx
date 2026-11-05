@@ -244,7 +244,7 @@
             "https://us.mirrors.cicku.me/mageia/iso/",
             "https://mirror.math.princeton.edu/pub/mageia/iso/"
         ],
-        "checksum_base": "https://mirror.math.princeton.edu/pub/mageia/iso/{version}/Mageia-{version}-x86_64/",
+        "checksum_base": "https://distrib-coffee.ipsl.jussieu.fr/pub/linux/Mageia/iso/{version}/Mageia-{version}-x86_64/",
         "checksum_filename": "{iso_filename}.sha512",
         "discovery_method": "html_scan",
         "hash_algo": "sha512",
