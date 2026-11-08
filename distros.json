@@ -3,7 +3,7 @@
         "mirrors": [
             "https://fastly.mirror.pkgbuild.com/iso/latest/",
             "https://geo.mirror.pkgbuild.com/iso/latest/",
-            "https://mirror.rackspace.com/archlinux/iso/latest/"
+            "https://mirrors.mit.edu/archlinux/iso/latest/"
         ],
         "checksum_base": "https://geo.mirror.pkgbuild.com/iso/latest/",
         "checksum_filename": "sha256sums.txt",
