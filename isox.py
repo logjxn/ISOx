@@ -412,9 +412,6 @@ def parse_checksum_file(text, checksum_format, hash_algo, iso_filename):
     # "single" - file is the hash
     # "bsd" - things like Fedora use this
     # "multi" - Default, i.e. <hash> <filename> type format
-    if checksum_format == "single":
-        return {iso_filename: text.strip()}
-
     hash_lookup = {}
     if checksum_format == "bsd":
         for line in text.splitlines():
@@ -431,6 +428,10 @@ def parse_checksum_file(text, checksum_format, hash_algo, iso_filename):
             parts = line.split()
             if len(parts) == 2:
                 hash_lookup[parts[1].lstrip("*")] = parts[0]
+    if checksum_format == "single":
+        # First token only: NixOS writes real filename after the hash
+        tokens = text.split()
+        return {iso_filename: tokens[0] if tokens else ""}
     return hash_lookup
 
 
@@ -621,11 +622,25 @@ def find_latest_lts_folder(directory_url, release=None):
     return lts_folders[-1][1]
 
 
+def find_latest_s3_prefix(listing_url, prefix="", suffix="", release=None):
+    response = requests.get(
+        listing_url, timeout=10, headers=request_headers(), hooks=HOOKS
+    )
+    response.raise_for_status()
+    # S3 ListBucket XML: read folder names directly. html.parser warns on XML
+    names = re.findall(r"<Prefix>([^<]*)</Prefix>", response.text)
+    return pick_latest_version(names, prefix=prefix, suffix=suffix, release=release)
+
+
 def version_finder_for(distro_info, release=None):
     if distro_info.get("version_scheme") == "ubuntu_lts":
         return lambda url: find_latest_lts_folder(url, release=release)
     prefix = distro_info.get("version_prefix", "")
     suffix = distro_info.get("version_suffix", "")
+    if distro_info.get("version_scheme") == "s3_listing":
+        return lambda url: find_latest_s3_prefix(
+            url, prefix=prefix, suffix=suffix, release=release
+        )
     return lambda url: find_latest_version_folder(
         url, prefix=prefix, suffix=suffix, release=release
     )
@@ -747,6 +762,18 @@ def fetch_hash_lookup(name, distro_info, checksum_source, iso_filename):
             f"couldn't fetch the checksum for '{name}' from {checksum_url} ({e}). "
             f"Without it the ISO can't be verified."
         ) from e
+    tokens = response.text.split()
+    # A single-format file may name the real build behind an alias
+    # Check that name too, to catch beta builds
+    if (
+        distro_info.get("checksum_format") == "single"
+        and len(tokens) > 1
+        and not filename_matches(tokens[1], [], excluded_substrings_for(distro_info))
+    ):
+        raise ISOxError(
+            f"'{name}' currently points at {tokens[1]}, which looks like a "
+            f"pre-release. Nothing was downloaded."
+        )
     return parse_checksum_file(
         response.text,
         distro_info.get("checksum_format", "multi"),

@@ -360,3 +360,11 @@ def test_release_filename_prefix_requires_html_scan():
     }
     with pytest.raises(isox.ISOxError, match="only works with html_scan"):
         isox.validate_distro_config("x", config)
+
+
+def test_single_format_ignores_a_filename_after_the_hash():
+    text = "abc123  nixos-minimal-26.05.14234.f1e5c356f35d-x86_64-linux.iso"
+    result = isox.parse_checksum_file(
+        text, "single", "sha256", "latest-nixos-minimal-x86_64-linux.iso"
+    )
+    assert result == {"latest-nixos-minimal-x86_64-linux.iso": "abc123"}
