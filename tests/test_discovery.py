@@ -603,3 +603,15 @@ def test_release_without_prefix_keeps_folder_filenames(monkeypatch):
         "https://example.test/", ["live-server", "amd64"], release="24.04"
     )
     assert found == "ubuntu-24.04.3-live-server-amd64.iso"
+
+
+def test_version_prefix_picks_the_newest_numbered_channel():
+    names = [
+        "../",
+        "nixos-25.11/",
+        "nixos-26.05/",
+        "nixos-26.05-small/",
+        "nixos-unstable/",
+        "nixpkgs-26.05-darwin/",
+    ]
+    assert isox.pick_latest_version(names, prefix="nixos-") == "nixos-26.05"
