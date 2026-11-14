@@ -317,5 +317,31 @@
         "hash_algo": "sha256",
         "iso_filename_contains": ["x86_64", "boot"],
         "iso_filename_excludes": ["latest"]
+    },
+    "nixos": {
+        "mirrors": ["https://channels.nixos.org/{version}/"],
+        "version_directory": true,
+        "version_discovery_url": "https://nix-channels.s3.amazonaws.com/?delimiter=/",
+        "version_scheme": "s3_listing",
+        "version_prefix": "nixos-",
+        "checksum_base": "https://channels.nixos.org/{version}/",
+        "checksum_filename": "{iso_filename}.sha256",
+        "checksum_format": "single",
+        "hash_algo": "sha256",
+        "iso_filename": "latest-nixos-minimal-x86_64-linux.iso",
+        "iso_filename_excludes": ["beta"]
+    },
+    "nixos-graphical": {
+        "mirrors": ["https://channels.nixos.org/{version}/"],
+        "version_directory": true,
+        "version_discovery_url": "https://nix-channels.s3.amazonaws.com/?delimiter=/",
+        "version_scheme": "s3_listing",
+        "version_prefix": "nixos-",
+        "checksum_base": "https://channels.nixos.org/{version}/",
+        "checksum_filename": "{iso_filename}.sha256",
+        "checksum_format": "single",
+        "hash_algo": "sha256",
+        "iso_filename": "latest-nixos-graphical-x86_64-linux.iso",
+        "iso_filename_excludes": ["beta"]
     }
 }

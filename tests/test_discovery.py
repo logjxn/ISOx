@@ -458,6 +458,60 @@ def test_a_stale_discovery_url_cannot_roll_back_the_version(monkeypatch, urls):
     assert isox.find_latest_version("mageia", urls, finder) == "10"
 
 
+S3_LISTING = (
+    "<ListBucketResult><Prefix></Prefix>"
+    "<CommonPrefixes><Prefix>nixos-25.11/</Prefix></CommonPrefixes>"
+    "<CommonPrefixes><Prefix>nixos-26.05/</Prefix></CommonPrefixes>"
+    "<CommonPrefixes><Prefix>nixos-26.05-small/</Prefix></CommonPrefixes>"
+    "<CommonPrefixes><Prefix>nixos-unstable/</Prefix></CommonPrefixes>"
+    "</ListBucketResult>"
+)
+
+
+def test_s3_listing_finds_the_newest_channel(monkeypatch):
+    serve_listings(monkeypatch, {"https://bucket.test/": S3_LISTING})
+    assert (
+        isox.find_latest_s3_prefix("https://bucket.test/", prefix="nixos-")
+        == "nixos-26.05"
+    )
+
+
+NIX_SINGLE = {
+    "checksum_filename": "{iso_filename}.sha256",
+    "checksum_format": "single",
+    "hash_algo": "sha256",
+    "iso_filename_excludes": ["beta"],
+}
+
+
+def test_a_beta_behind_a_single_format_alias_is_refused(monkeypatch):
+    serve_listings(
+        monkeypatch,
+        {
+            "https://nix.test/latest.iso.sha256": (
+                "abc123  nixos-minimal-25.11beta186.2fecba995209-x86_64-linux.iso"
+            )
+        },
+    )
+    with pytest.raises(isox.ISOxError, match="looks like a pre-release"):
+        isox.fetch_hash_lookup("nixos", NIX_SINGLE, "https://nix.test", "latest.iso")
+
+
+def test_a_stable_build_behind_a_single_format_alias_passes(monkeypatch):
+    # The commit hash has b's on purpose: an exclude of "b" would wrongly refuse it
+    serve_listings(
+        monkeypatch,
+        {
+            "https://nix.test/latest.iso.sha256": (
+                "abc123  nixos-graphical-26.05.1183.6b316287bae2-x86_64-linux.iso"
+            )
+        },
+    )
+    assert isox.fetch_hash_lookup(
+        "nixos", NIX_SINGLE, "https://nix.test", "latest.iso"
+    ) == {"latest.iso": "abc123"}
+
+
 def test_a_stale_discovery_url_cannot_roll_back_a_requested_release(monkeypatch):
     serve_listings(
         monkeypatch,
@@ -603,3 +657,15 @@ def test_release_without_prefix_keeps_folder_filenames(monkeypatch):
         "https://example.test/", ["live-server", "amd64"], release="24.04"
     )
     assert found == "ubuntu-24.04.3-live-server-amd64.iso"
+
+
+def test_version_prefix_picks_the_newest_numbered_channel():
+    names = [
+        "../",
+        "nixos-25.11/",
+        "nixos-26.05/",
+        "nixos-26.05-small/",
+        "nixos-unstable/",
+        "nixpkgs-26.05-darwin/",
+    ]
+    assert isox.pick_latest_version(names, prefix="nixos-") == "nixos-26.05"

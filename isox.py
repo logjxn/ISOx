@@ -11,7 +11,7 @@ import sysconfig
 import re
 from bs4 import BeautifulSoup
 
-__version__ = "3.8.2"
+__version__ = "3.9.0"
 PART_MAX_AGE_SECONDS = 24 * 60 * 60
 DEFAULT_DOWNLOAD_DIR = "ISOx_Downloads"
 
@@ -292,6 +292,41 @@ def validate_distro_config(name, distro_info):
             raise ISOxError(f"'{name}' contains a non-HTTPS URL: {url}")
 
 
+def pick_latest_version(names, min_parts=1, prefix="", suffix="", release=None):
+    wanted = release_parts(release)
+
+    version_folders = []
+    for name in names:
+        cleaned = name.rstrip("/")
+        number = cleaned
+        if prefix:
+            if not number.startswith(prefix):
+                continue
+            number = number[len(prefix) :]
+        if suffix:
+            if not number.endswith(suffix):
+                continue
+            number = number[: -len(suffix)]
+        parts = number.split(".")
+        if not (all(part.isdigit() for part in parts) and len(parts) >= min_parts):
+            continue
+        version = tuple(int(p) for p in parts)
+        # A release of "22" keeps 22, 22.1 and 22.2, but not 220
+        if wanted is not None and version[: len(wanted)] != wanted:
+            continue
+        version_folders.append((version, cleaned))
+
+    if not version_folders:
+        if release is not None:
+            raise ValueError(
+                f"No version-numbered folders matching release {release} found in directory listing"
+            )
+        raise ValueError("No version-numbered folders found in directory listing")
+
+    version_folders.sort(key=lambda x: x[0])
+    return version_folders[-1][1]
+
+
 def resolve_iso_filename(name, distro_info, sources, checksum_filename, release=None):
     # 1. "iso_filename" -> static and doesn't change, like Arch
     # 2. "iso_filename_contains" -> scan a shared checksum file
@@ -377,9 +412,6 @@ def parse_checksum_file(text, checksum_format, hash_algo, iso_filename):
     # "single" - file is the hash
     # "bsd" - things like Fedora use this
     # "multi" - Default, i.e. <hash> <filename> type format
-    if checksum_format == "single":
-        return {iso_filename: text.strip()}
-
     hash_lookup = {}
     if checksum_format == "bsd":
         for line in text.splitlines():
@@ -396,6 +428,10 @@ def parse_checksum_file(text, checksum_format, hash_algo, iso_filename):
             parts = line.split()
             if len(parts) == 2:
                 hash_lookup[parts[1].lstrip("*")] = parts[0]
+    if checksum_format == "single":
+        # First token only: NixOS writes real filename after the hash
+        tokens = text.split()
+        return {iso_filename: tokens[0] if tokens else ""}
     return hash_lookup
 
 
@@ -539,7 +575,9 @@ def discover_via_html_listing(
     return max(matches, key=natural_sort_key)
 
 
-def find_latest_version_folder(directory_url, min_parts=1, suffix="", release=None):
+def find_latest_version_folder(
+    directory_url, min_parts=1, prefix="", suffix="", release=None
+):
     response = requests.get(
         directory_url, timeout=10, headers=request_headers(), hooks=HOOKS
     )
@@ -547,34 +585,7 @@ def find_latest_version_folder(directory_url, min_parts=1, suffix="", release=No
     soup = BeautifulSoup(response.text, "html.parser")
 
     links = [a.get("href") for a in soup.find_all("a") if a.get("href")]
-    wanted = release_parts(release)
-
-    version_folders = []
-    for link in links:
-        cleaned = link.rstrip("/")
-        number = cleaned
-        if suffix:
-            if not cleaned.endswith(suffix):
-                continue
-            number = cleaned[: -len(suffix)]
-        parts = number.split(".")
-        if not (all(part.isdigit() for part in parts) and len(parts) >= min_parts):
-            continue
-        version = tuple(int(p) for p in parts)
-        # A release of "22" keeps 22, 22.1 and 22.2, but not 220
-        if wanted is not None and version[: len(wanted)] != wanted:
-            continue
-        version_folders.append((version, cleaned))
-
-    if not version_folders:
-        if release is not None:
-            raise ValueError(
-                f"No version-numbered folders matching release {release} found in directory listing"
-            )
-        raise ValueError("No version-numbered folders found in directory listing")
-
-    version_folders.sort(key=lambda x: x[0])
-    return version_folders[-1][1]
+    return pick_latest_version(links, min_parts, prefix, suffix, release)
 
 
 def find_latest_lts_folder(directory_url, release=None):
@@ -611,11 +622,28 @@ def find_latest_lts_folder(directory_url, release=None):
     return lts_folders[-1][1]
 
 
+def find_latest_s3_prefix(listing_url, prefix="", suffix="", release=None):
+    response = requests.get(
+        listing_url, timeout=10, headers=request_headers(), hooks=HOOKS
+    )
+    response.raise_for_status()
+    # S3 ListBucket XML: read folder names directly. html.parser warns on XML
+    names = re.findall(r"<Prefix>([^<]*)</Prefix>", response.text)
+    return pick_latest_version(names, prefix=prefix, suffix=suffix, release=release)
+
+
 def version_finder_for(distro_info, release=None):
     if distro_info.get("version_scheme") == "ubuntu_lts":
         return lambda url: find_latest_lts_folder(url, release=release)
+    prefix = distro_info.get("version_prefix", "")
     suffix = distro_info.get("version_suffix", "")
-    return lambda url: find_latest_version_folder(url, suffix=suffix, release=release)
+    if distro_info.get("version_scheme") == "s3_listing":
+        return lambda url: find_latest_s3_prefix(
+            url, prefix=prefix, suffix=suffix, release=release
+        )
+    return lambda url: find_latest_version_folder(
+        url, prefix=prefix, suffix=suffix, release=release
+    )
 
 
 def find_latest_version(name, discovery_urls, finder, release=None):
@@ -734,6 +762,18 @@ def fetch_hash_lookup(name, distro_info, checksum_source, iso_filename):
             f"couldn't fetch the checksum for '{name}' from {checksum_url} ({e}). "
             f"Without it the ISO can't be verified."
         ) from e
+    tokens = response.text.split()
+    # A single-format file may name the real build behind an alias
+    # Check that name too, to catch beta builds
+    if (
+        distro_info.get("checksum_format") == "single"
+        and len(tokens) > 1
+        and not filename_matches(tokens[1], [], excluded_substrings_for(distro_info))
+    ):
+        raise ISOxError(
+            f"'{name}' currently points at {tokens[1]}, which looks like a "
+            f"pre-release. Nothing was downloaded."
+        )
     return parse_checksum_file(
         response.text,
         distro_info.get("checksum_format", "multi"),
