@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1162" height="382" viewBox="0 0 1162 382" role="img" aria-labelledby="t">
-  <title id="t">isox alpine: ISOx samples four mirrors, downloads from the fastest (Purdue), checks the file against the checksum published by Alpine's own host, and reports: Checksum matches, file is good.</title>
+  <title id="t">isox alpine: isox samples four mirrors, downloads from the fastest (Purdue), checks the file against the checksum published by Alpine's own host, and reports: Checksum matches, file is good.</title>
   <style>
     text { font-family: 'DejaVu Sans Mono', 'JetBrains Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace; font-size: 14px; }
     .muted { fill: #A99270; }
