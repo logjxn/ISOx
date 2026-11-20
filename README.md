@@ -1,4 +1,4 @@
-# ISOx
+# isox
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 [![PyPI](https://img.shields.io/pypi/v/isox)](https://pypi.org/project/isox/)
@@ -7,7 +7,7 @@
 ![OS](https://img.shields.io/badge/platform-Linux-orange)
 ![CI](https://github.com/logjxn/ISOx/actions/workflows/ci.yml/badge.svg)
 
-A command-line tool for downloading and verifying Linux distribution ISOs.
+A command-line tool for downloading and verifying Linux distribution `.iso` files.
 
 ![isox alpine: four mirrors sampled, download from the fastest, checksum from Alpine's own host](https://raw.githubusercontent.com/logjxn/ISOx/main/assets/isox-demo.svg)
 
@@ -16,11 +16,11 @@ Select distro -> Compare mirror speeds -> Download .iso -> Verify checksum
                                           (fastest mirror)  (distro's own host)
 ```
 
-Already have an ISO? `isox <distro> --verify FILE` checks it against the distro's own checksum without downloading anything.
+Already have an `.iso`? `isox <distro> --verify FILE` checks it against the distro's own checksum without downloading anything.
 
 ## Why
 
-Manually verifying checksums gets tedious quickly, making it easy to skip. Skipping verification can pose an integrity risk (modified ISOs, corruption, etc.), so ISOx automates the process.
+Manually verifying checksums gets tedious quickly, making it easy to skip. Skipping verification can pose an integrity risk (modified `.iso`s, corruption, etc.), so isox automates the process.
 
 I hope this tool makes getting started with Linux a little faster, easier, and safer for anyone who wants to use it.
 
@@ -116,11 +116,11 @@ The checksum is fetched on every run. Files that fail verification are renamed t
 
 ## Security
 
-ISOx detects corruption, incomplete downloads, and ISOs that don't match their published checksums.
+isox detects corruption, incomplete downloads, and `.iso`s that don't match their published checksums.
 
-It does not authenticate the checksum itself. If a distribution's infrastructure is compromised, an attacker could replace both the ISO and its checksum.
+It does not authenticate the checksum itself. If a distribution's infrastructure is compromised, an attacker could replace both the `.iso` and its checksum.
 
-ISOx does not verify GPG signatures. See [SECURITY.md](https://github.com/logjxn/ISOx/blob/main/.github/SECURITY.md) for details.
+isox does not verify GPG signatures. See [SECURITY.md](https://github.com/logjxn/ISOx/blob/main/.github/SECURITY.md) for details.
 
 ## Requirements
 
