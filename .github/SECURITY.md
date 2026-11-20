@@ -13,7 +13,7 @@ isox does **not** verify GPG signatures. A successful checksum verification conf
 
 If your threat model requires release authenticity verification, follow the distribution's official signature verification instructions.
 
-All configured mirrors use HTTPS. ISOx does not accept downloads over plain HTTP.
+All configured mirrors use HTTPS. isox does not accept downloads over plain HTTP.
 
 ## Reporting a Vulnerability
 
